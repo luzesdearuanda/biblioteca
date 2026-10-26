@@ -838,6 +838,7 @@ VIEWS.emprestimoOk = {
 };
 
 /* ---- Protocolos (retirada e renovação) ---- */
+const LOCAL_PROT = 'Passo Fundo/RS'; // versão 1.4: local e data saem preenchidos (data da geração do protocolo)
 function protocoloDoc(pr) {
   const l = S.emprestimos.find(x => x.id === pr.loanId) || {}, u = user(l.userId), ex = exem(l.exId), o = obra(ex.obraId), op = S.operadores.find(x => x.email === pr.geradoPor);
   const al = assocLinhas(), ren = pr.tipo === 'renovacao';
@@ -850,8 +851,8 @@ function protocoloDoc(pr) {
       ? row('Empréstimo nº', l.id, 'mono') + row('Retirada', fmtD(l.dataEmp)) + row('Vencimento anterior', fmtD(pr.dataPrevAnterior)) + row('Novo vencimento', `<b>${fmtD(pr.novaDataPrev)}</b>`)
       : row('Retirada', fmtD(l.dataEmp)) + row('Devolver até', `<b>${fmtD(pr.novaDataPrev)}</b>`) + row('Estado na retirada', esc(l.estadoRetirada || 'Não informado'))}${row('Operador', esc(op ? op.nome : pr.geradoPor))}</table>
     <h4>Termo de responsabilidade</h4><p class="doc-termo">${esc(pr.termoTexto)}</p>
-    <div class="doc-sign"><div><span class="line"></span>Assinatura do usuário<br><b>${esc(u.nome)}</b></div><div><span class="line"></span>Operador responsável<br><b>${esc(op ? op.nome : pr.geradoPor)}</b></div></div>
-    <p class="doc-place">Local e data: ______________________________, ____/____/________</p>
+    <p class="doc-place">${LOCAL_PROT}, ${fmtD(pr.geradoEm.slice(0, 10))}.</p>
+    <div class="doc-sign"><div><span class="sig-box"></span><span class="line"></span>Assinatura do usuário<br><b>${esc(u.nome)}</b></div><div><span class="sig-box">${op && op.assinatura ? `<img src="data:image/png;base64,${op.assinatura}" alt="Assinatura de ${esc(op.nome)}">` : ''}</span><span class="line"></span>Operador responsável<br><b>${esc(op ? op.nome : pr.geradoPor)}</b></div></div>
     <footer>Documento gerado em ${fmtStamp(pr.geradoEm)}. Depois de assinado, digitalize ou fotografe este protocolo e anexe no sistema (protocolo nº ${pr.id}).</footer>
   </article>`;
 }
@@ -884,6 +885,7 @@ VIEWS.protocolo = {
       ${pend ? `<ol class="prot-steps">${step(1, 'Imprimir', UI.prot.printed, !UI.prot.printed)}${step(2, 'Colher a assinatura', false, UI.prot.printed)}${step(3, 'Anexar o documento assinado', false, false)}</ol>` : ''}
       <div class="prot-layout">
         <section class="panel prot-doc"><div class="panel-head"><h2>Documento para impressão</h2><button class="btn sm" data-act="protPrint">${ic('print')} Imprimir protocolo</button></div>
+          ${pend ? protEnvioHTML(pr, u) : ''}
           <div class="doc-wrap">${protocoloDoc(pr)}</div></section>
         <section class="panel prot-side">
           ${pend ? `<h2>Anexar o protocolo assinado</h2>
@@ -1114,7 +1116,7 @@ VIEWS.operadores = {
       ${S.operadores.map((o, i) => { const self = o.email === S.session.email; return `<tr><td class="lead"><div class="t">${esc(o.nome)}${self ? ' <span class="chip">você</span>' : ''}</div><div class="s">${esc(o.email)}</div></td>
         <td data-label="Perfil">${o.perfil === 'Admin' ? '<span class="role">Admin</span>' : 'Operador'}</td><td data-label="Situação">${pill(o.status, o.status === 'Ativo' ? 'ok' : 'mute')}</td>
         <td data-label="Último acesso" class="num">${fmtStamp(o.ultimoAcesso)}</td>
-        <td class="actions">${self ? '' : `<button class="btn sm" data-act="opPerfil" data-i="${i}">${o.perfil === 'Admin' ? 'Tornar operador' : 'Tornar admin'}</button><button class="btn sm ${o.status === 'Ativo' ? 'danger' : ''}" data-act="opStatus" data-i="${i}">${o.status === 'Ativo' ? 'Inativar' : 'Reativar'}</button>`}</td></tr>`; }).join('')}
+        <td class="actions"><button class="btn sm" data-act="assAbrir" data-email="${esc(o.email)}">${o.assinatura ? 'Assinatura ✓' : 'Assinatura'}</button>${self ? '' : `<button class="btn sm" data-act="opPerfil" data-i="${i}">${o.perfil === 'Admin' ? 'Tornar operador' : 'Tornar admin'}</button><button class="btn sm ${o.status === 'Ativo' ? 'danger' : ''}" data-act="opStatus" data-i="${i}">${o.status === 'Ativo' ? 'Inativar' : 'Reativar'}</button>`}</td></tr>`; }).join('')}
       </tbody></table></div>
       <form class="panel form" data-form="operador" novalidate><h2>Adicionar operador</h2><div class="fields">
         <div class="field"><label for="o-email">E-mail da conta Google <span class="req">*</span></label><input id="o-email" type="email" placeholder="nome@gmail.com"><span class="msg" id="m-oemail"></span></div>
@@ -1448,7 +1450,7 @@ const ACT = {
     const d = UI.draft; const s = loanState();
     if (!s.ok) { d.err = 'Os dados mudaram. Confira usuário e exemplar.'; render(); return; }
     run(async () => {
-      try { const r = await api('emprestimo.criar', { userId: d.userId, exId: d.exId, dataEmp: d.dataEmp, dataPrev: d.dataPrev, estado: (d.estado || '').trim() }, { msg: 'Gerando protocolo…' }); go('protocolo', { id: r.protocoloId }); }
+      try { const r = await api('emprestimo.criar', { userId: d.userId, exId: d.exId, dataEmp: d.dataEmp, dataPrev: d.dataPrev, estado: (d.estado || '').trim() }, { msg: 'Gerando protocolo…' }); go('protocolo', { id: r.protocoloId }); envioAuto(r.protocoloId); }
       catch (e) { if (e.code === 'VALIDATION') { d.err = e.message; render(); } else throw e; }
     });
   },
@@ -1523,7 +1525,7 @@ const ACT = {
            <p class="small muted">Será gerado um protocolo de renovação para a pessoa assinar. A nova data só vale depois que o documento assinado for anexado.</p>
            <div class="modal-actions"><button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="renConfirm" data-id="${l.id}">Gerar protocolo de renovação</button></div>`}`);
   },
-  renConfirm(t) { run(async () => { const r = await api('emprestimo.renovar', { loanId: t.dataset.id }, { msg: 'Gerando protocolo…' }); closeModal(); go('protocolo', { id: r.protocoloId }); }); },
+  renConfirm(t) { run(async () => { const r = await api('emprestimo.renovar', { loanId: t.dataset.id }, { msg: 'Gerando protocolo…' }); closeModal(); go('protocolo', { id: r.protocoloId }); envioAuto(r.protocoloId); }); },
   detalhe(t) {
     const l = S.emprestimos.find(x => x.id === t.dataset.id);
     const al = S.alertLog.filter(a => a.loanId === l.id).sort((a, b) => b.ts.localeCompare(a.ts));
@@ -2026,3 +2028,76 @@ Object.assign(CHG, { audGen(el) { el.checked ? UI.audNovo.gens.add(el.dataset.s)
 /* ============ Início ============ */
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
 if (configurado() && getToken()) boot(); else render();
+
+/* ---- versão 1.4: assinatura do operador e protocolo em PDF para assinar pelo gov.br ---- */
+function processarAssinatura(file) { // fundo transparente, recorte e redução (o mesmo da carteirinha da secretaria)
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const k = Math.min(1, 1400 / Math.max(img.width, img.height)), w = Math.round(img.width * k), h = Math.round(img.height * k);
+      const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); g.drawImage(img, 0, 0, w, h);
+      const d = g.getImageData(0, 0, w, h), p = d.data; let x0 = w, y0 = h, x1 = 0, y1 = 0;
+      for (let i = 0; i < p.length; i += 4) {
+        const lum = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2];
+        if (p[i + 3] < 128 || lum > 185) p[i + 3] = 0;
+        else { p[i + 3] = Math.min(255, Math.round((185 - lum) / 120 * 255)); p[i] = Math.min(p[i], 40); p[i + 1] = Math.min(p[i + 1], 40); p[i + 2] = Math.min(p[i + 2], 90); const q = i / 4, x = q % w, y = (q / w) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      }
+      if (x1 <= x0 || y1 <= y0) { rej(new Error('Não encontrei a assinatura na imagem. Use caneta escura em papel branco.')); return; }
+      g.putImageData(d, 0, 0);
+      const m = 8; x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m); x1 = Math.min(w - 1, x1 + m); y1 = Math.min(h - 1, y1 + m);
+      let largura = 640, b64 = '';
+      do {
+        const sc = Math.min(largura / (x1 - x0 + 1), (largura * 0.3) / (y1 - y0 + 1), 1);
+        const o = document.createElement('canvas'); o.width = Math.max(1, Math.round((x1 - x0 + 1) * sc)); o.height = Math.max(1, Math.round((y1 - y0 + 1) * sc));
+        o.getContext('2d').drawImage(c, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 0, 0, o.width, o.height);
+        b64 = o.toDataURL('image/png').split(',')[1]; largura -= 80;
+      } while (b64.length > 40000 && largura > 160);
+      if (b64.length > 40000) { rej(new Error('Imagem da assinatura muito detalhada. Tente uma foto mais limpa.')); return; }
+      res(b64);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Não foi possível abrir a imagem.')); };
+    img.src = url;
+  });
+}
+const assModal = o => `<h2>Assinatura de ${esc(o.nome)}</h2><p class="small muted">Assine com caneta escura em papel branco e tire uma foto bem iluminada (ou envie uma imagem PNG com fundo transparente). O fundo é removido sozinho. A assinatura sai no campo "Operador responsável" dos protocolos gerados por ${o.email === S.session.email ? 'você' : 'este operador'}.</p>
+  <div class="sig-prev">${o.assinatura ? `<img src="data:image/png;base64,${o.assinatura}" alt="Assinatura cadastrada">` : '<span class="muted small">Nenhuma assinatura cadastrada</span>'}</div>
+  <div class="modal-actions">${o.assinatura ? `<button class="btn danger" data-act="assRemover" data-email="${esc(o.email)}">Remover</button>` : ''}<button class="btn" data-act="close">Fechar</button>
+    <label class="btn primary" for="ass-arq">${o.assinatura ? 'Trocar imagem' : 'Enviar imagem'}</label><input id="ass-arq" type="file" accept="image/*" data-ch="assArquivo" data-email="${esc(o.email)}" class="sr"></div>`;
+const opDe = email => S.operadores.find(o => o.email === email);
+Object.assign(ACT, {
+  assAbrir(t) { openModal(assModal(opDe(t.dataset.email || S.session.email))); },
+  assRemover(t) { const e = t.dataset.email; run(async () => { await api('operador.assinatura', { email: e, imagem: '' }); openModal(assModal(opDe(e))); render(); toast('Assinatura removida'); }); },
+  protPdf() { const pr = protocolo(UI.prot.id); run(async () => { busy(true, 'Gerando PDF…'); try { baixarBlob(await protocoloPdf(pr), `Protocolo ${pr.id}.pdf`); } finally { busy(false); } }); },
+  protEnviar() { run(() => enviarProtocolo(UI.prot.id)); },
+});
+CHG.assArquivo = el => {
+  const f = el.files[0], e = el.dataset.email; if (!f) return;
+  run(async () => { const b64 = await processarAssinatura(f); await api('operador.assinatura', { email: e, imagem: b64 }, { msg: 'Salvando assinatura…' }); openModal(assModal(opDe(e))); render(); toast('Assinatura salva'); });
+};
+function baixarBlob(blob, nome) { const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = nome; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); }
+let H2P = null; // html2pdf carregado só quando precisa
+const carregaH2P = () => H2P || (H2P = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'; sc.onload = () => res(window.html2pdf); sc.onerror = () => { H2P = null; rej(new Error('Não foi possível carregar o gerador de PDF. Verifique a internet.')); }; document.head.appendChild(sc); }));
+async function protocoloPdf(pr) {
+  const h2p = await carregaH2P();
+  const box = document.createElement('div'); box.className = 'pdf-render'; box.innerHTML = protocoloDoc(pr); document.body.appendChild(box);
+  try { return await h2p().set({ margin: [8, 8, 8, 8], image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2, backgroundColor: '#ffffff' }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(box.firstElementChild).outputPdf('blob'); }
+  finally { box.remove(); }
+}
+const blob64 = b => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = () => rej(new Error('Falha ao ler o PDF.')); fr.readAsDataURL(b); });
+async function enviarProtocolo(id, auto) {
+  const pr = protocolo(id); if (!pr || pr.status !== 'pendente') return;
+  if (!auto) busy(true, 'Gerando PDF…');
+  try { const pdf = await blob64(await protocoloPdf(pr)); const r = await api('protocolo.enviar', { protocoloId: id, pdf }, auto ? { silent: true } : { msg: 'Enviando por e-mail…' }); if (VIEW === 'protocolo') render(); toast(`Protocolo enviado para ${r.para} assinar pelo gov.br`); }
+  finally { if (!auto) busy(false); }
+}
+function envioAuto(id) {
+  const pr = protocolo(id), l = pr && S.emprestimos.find(x => x.id === pr.loanId), u = l && user(l.userId);
+  if (u && u.email) enviarProtocolo(id, true).catch(e => toast('O e-mail com o PDF não foi enviado: ' + e.message + ' Use "Baixar PDF".', 'bad'));
+}
+function protEnvioHTML(pr, u) {
+  const me = opDe(S.session.email), meu = pr.geradoPor === S.session.email;
+  return `<div class="prot-envio">${meu && me && !me.assinatura ? `<div class="note warn"><span>Você ainda não cadastrou a sua assinatura; o campo do operador sai em branco. <button class="btn sm" data-act="assAbrir" data-email="${esc(me.email)}">Cadastrar assinatura</button></span></div>` : ''}
+    <div class="note info"><b>Assinatura pelo gov.br</b><span>${pr.enviadoEm ? `PDF enviado para ${esc(pr.enviadoPara)} em ${fmtStamp(pr.enviadoEm)}.` : u.email ? 'O PDF ainda não foi enviado por e-mail.' : 'O leitor não tem e-mail cadastrado: baixe o PDF e envie por WhatsApp.'} O leitor assina em assinador.iti.br e devolve o PDF assinado; depois é só anexar aqui.</span>
+    <span class="toolbar"><button class="btn sm" data-act="protPdf">${ic('copy')} Baixar PDF</button>${u.email ? `<button class="btn sm" data-act="protEnviar">${pr.enviadoEm ? 'Enviar de novo' : 'Enviar por e-mail'}</button>` : ''}</span></div></div>`;
+}
