@@ -419,3 +419,12 @@ a.btn{text-decoration:none}
 }
 
 td .pill{white-space:normal;text-align:left}
+
+/* versão 1.4: assinatura do operador e PDF do protocolo */
+.doc-sign .sig-box{display:flex;align-items:flex-end;justify-content:center;height:52px}
+.doc-sign .sig-box img{max-height:52px;max-width:90%;margin-bottom:-4px}
+.sig-prev{display:grid;place-items:center;min-height:90px;border:1px dashed var(--line,#ccc);border-radius:8px;background:#fff;padding:10px;margin:10px 0}
+.sig-prev img{max-height:80px;max-width:100%}
+.prot-envio{display:grid;gap:8px;margin-bottom:10px}
+.pdf-render{position:absolute;left:0;top:0;width:760px;z-index:-1;background:#fff}
+.pdf-render .doc{box-shadow:none;max-width:none}
