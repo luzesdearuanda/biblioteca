@@ -489,9 +489,16 @@ const loginCard = body => `<div class="login"><div class="login-card">
 function vLogin() {
   if (UI.login === 'loading') return loginCard(`<div class="spinner" role="status" aria-label="Carregando"></div><p class="muted">Validando acesso e carregando o acervo…</p>`);
   if (UI.login === 'error') return loginCard(`<div class="note bad" style="text-align:left"><b>Não foi possível carregar o sistema</b><span>${esc(UI.errMsg)}</span></div><button class="btn primary" data-act="retryBoot">Tentar de novo</button><button class="btn ghost" data-act="loginReset">Entrar com outra conta</button>`);
-  return loginCard(`${UI.loginMsg ? `<div class="note warn" style="text-align:left"><span>${esc(UI.loginMsg)}</span></div>` : ''}<div id="g-btn" class="g-btn" aria-label="Entrar com Google"></div>
+  // versão 1.6.5: primeiro escolhe Leitor ou Operador (a escolha de operador fica lembrada neste aparelho)
+  if (UI.operador === undefined) { let a = ''; try { a = localStorage.getItem('bibAcesso'); } catch (e) { } UI.operador = a === 'operador' || !!UI.loginMsg; }
+  if (!UI.operador) return loginCard(`<p class="muted" style="margin:0">Como você quer entrar?</p>
+      <div class="acesso-opcoes">
+        <a class="acesso" href="leitor.html">${ic('book')}<span><b>Leitor</b><span>Consultar o acervo, pedir livros e ver as cantigas. Entra com CPF e senha.</span></span></a>
+        <button class="acesso" data-act="acessoOperador">${ic('shield')}<span><b>Operador</b><span>Empréstimos, cadastros e gestão da biblioteca. Entra com a conta Google.</span></span></button>
+      </div>`);
+  return loginCard(`<div class="eyebrow" style="margin:0">Acesso do operador</div>${UI.loginMsg ? `<div class="note warn" style="text-align:left"><span>${esc(UI.loginMsg)}</span></div>` : ''}<div id="g-btn" class="g-btn" aria-label="Entrar com Google"></div>
       <p class="small muted">O acesso é liberado apenas para operadores cadastrados pela administração da biblioteca. O app nunca pede sua senha do Google.</p>
-      <div style="border-top:1px solid var(--line);padding-top:14px;display:grid;gap:8px"><p class="small" style="margin:0"><b>É leitor da biblioteca?</b> Consulte o acervo e peça seus livros pelo portal, com CPF e senha.</p><a class="btn" href="leitor.html">${ic('book')} Sou leitor: acessar o portal</a></div>`);
+      <button class="btn ghost" data-act="acessoVoltar">← Sou leitor / voltar</button>`);
 }
 function vDenied() {
   return `<div class="login"><div class="login-card">
@@ -2272,6 +2279,8 @@ Object.assign(ACT, {
   toqNovo() { cantToqModal(null); },
   toqEditar(t) { cantToqModal((S.cantToques || []).find(y => y.id === t.dataset.id)); },
   toqSalvar(t) { run(async () => { await api('cant.toque.salvar', { id: t.dataset.id || undefined, nome: $('#tq-nome').value, ativa: $('#tq-at') ? $('#tq-at').checked : true }); closeModal(); render(); toast('Toque salvo'); }); },
+  acessoOperador() { UI.operador = true; try { localStorage.setItem('bibAcesso', 'operador'); } catch (e) { } render(); },
+  acessoVoltar() { UI.operador = false; UI.loginMsg = ''; try { localStorage.removeItem('bibAcesso'); } catch (e) { } render(); },
   portal() { UI.menu = false; window.open('leitor.html', '_blank', 'noopener'); render(); },
   tema() { const o = ['auto', 'claro', 'escuro']; TEMA.set(o[(o.indexOf(TEMA.get()) + 1) % 3]); render(); },
   opCurimba(t) { const o = S.operadores.find(x => x.email === t.dataset.email); run(async () => { await api('operador.curimba', { email: o.email, curimba: !o.curimba }); render(); }); },
