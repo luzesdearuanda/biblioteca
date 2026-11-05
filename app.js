@@ -135,6 +135,7 @@ const I = {
   list: '<path d="M9 6h12M9 12h12M9 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>',
   tag: '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
   bell: '<path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
+  portal: '<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
   tema: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M2.5 12h3M18.5 12h3M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/>',
   shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
@@ -425,7 +426,7 @@ function shell(content) {
   <div class="shell">
     <aside class="side">
       <div class="side-brand"><div class="logo-sm"><img src="${LOGO}" alt=""></div><div><b>Luzes de Aruanda</b><span>Biblioteca da associação</span></div></div>
-      <nav class="nav" aria-label="Menu principal">${nav}</nav>
+      <nav class="nav" aria-label="Menu principal">${nav}<div class="nav-sec">Leitores</div><button data-act="portal" title="Abre o portal do leitor numa nova aba">${ic('portal')}<span>Portal do leitor</span></button></nav>
       <div class="side-user"><div><b>${esc(S.session.nome)}</b> <span class="role">${S.session.perfil}</span></div><div class="email">${esc(S.session.email)}</div><button data-act="tema" title="Trocar entre automático, claro e escuro">Tema: ${TEMA.nomes[TEMA.get()]}</button><button data-act="logout">Sair</button></div>
     </aside>
     <div class="main">
@@ -451,6 +452,7 @@ function shell(content) {
     ${isAdmin() ? `<button data-act="go" data-v="configuracoes">${ic('gear')} Configurações</button>
     <button data-act="go" data-v="operadores">${ic('shield')} Operadores</button>
     <button data-act="go" data-v="atividades">${ic('clock')} Registro de atividades</button>` : ''}
+    <button data-act="portal">${ic('portal')} Portal do leitor (nova aba)</button>
     <button data-act="tema">${ic('tema')} Tema: ${TEMA.nomes[TEMA.get()]}</button>
     <button data-act="logout">${ic('logout')} Sair (${esc(S.session.email)})</button>
   </div>` : ''}`;
@@ -488,7 +490,8 @@ function vLogin() {
   if (UI.login === 'loading') return loginCard(`<div class="spinner" role="status" aria-label="Carregando"></div><p class="muted">Validando acesso e carregando o acervo…</p>`);
   if (UI.login === 'error') return loginCard(`<div class="note bad" style="text-align:left"><b>Não foi possível carregar o sistema</b><span>${esc(UI.errMsg)}</span></div><button class="btn primary" data-act="retryBoot">Tentar de novo</button><button class="btn ghost" data-act="loginReset">Entrar com outra conta</button>`);
   return loginCard(`${UI.loginMsg ? `<div class="note warn" style="text-align:left"><span>${esc(UI.loginMsg)}</span></div>` : ''}<div id="g-btn" class="g-btn" aria-label="Entrar com Google"></div>
-      <p class="small muted">O acesso é liberado apenas para operadores cadastrados pela administração da biblioteca. O app nunca pede sua senha do Google.</p>`);
+      <p class="small muted">O acesso é liberado apenas para operadores cadastrados pela administração da biblioteca. O app nunca pede sua senha do Google.</p>
+      <div style="border-top:1px solid var(--line);padding-top:14px;display:grid;gap:8px"><p class="small" style="margin:0"><b>É leitor da biblioteca?</b> Consulte o acervo e peça seus livros pelo portal, com CPF e senha.</p><a class="btn" href="leitor.html">${ic('book')} Sou leitor: acessar o portal</a></div>`);
 }
 function vDenied() {
   return `<div class="login"><div class="login-card">
@@ -2269,6 +2272,7 @@ Object.assign(ACT, {
   toqNovo() { cantToqModal(null); },
   toqEditar(t) { cantToqModal((S.cantToques || []).find(y => y.id === t.dataset.id)); },
   toqSalvar(t) { run(async () => { await api('cant.toque.salvar', { id: t.dataset.id || undefined, nome: $('#tq-nome').value, ativa: $('#tq-at') ? $('#tq-at').checked : true }); closeModal(); render(); toast('Toque salvo'); }); },
+  portal() { UI.menu = false; window.open('leitor.html', '_blank', 'noopener'); render(); },
   tema() { const o = ['auto', 'claro', 'escuro']; TEMA.set(o[(o.indexOf(TEMA.get()) + 1) % 3]); render(); },
   opCurimba(t) { const o = S.operadores.find(x => x.email === t.dataset.email); run(async () => { await api('operador.curimba', { email: o.email, curimba: !o.curimba }); render(); }); },
   gemSalvar() { const k = $('#c-gem').value.trim(); if (!k) { toast('Cole a chave.', 'bad'); return; } run(async () => { const r = await api('config.gemini', { chave: k }); S.geminiOk = r.geminiOk; render(); toast('Transcrição ativada'); }); },
