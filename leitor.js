@@ -1,4 +1,4 @@
-/* Portal do leitor (versão 1.6): início, catálogo físico, biblioteca virtual (em breve), cantigas (associados), perfil e ajuda.
+/* Portal do leitor (versão 1.7): início, catálogo físico, biblioteca virtual (PDF só na tela, com marca d'água), cantigas (associados), perfil e ajuda.
    Login com CPF e senha própria. Visual do mockup aprovado em 04/11/2026. */
 const CFG = window.BIBLIOTECA_CONFIG || {};
 const WHATS = '5554996164144';
@@ -66,10 +66,10 @@ async function api(action, payload = {}, msg) {
   } finally { busy(false); }
 }
 async function run(fn) { try { await fn(); } catch (e) { if (e.code === 'AUTH' && ls.get('bibLeitor')) { sair(e.message); return; } toast(e.message, 'bad'); } }
-function sair(msg) { ls.set('bibLeitor', null); D = null; C = null; V = 'entrar'; PG = 'inicio'; render(); if (msg) toast(msg, 'bad'); }
+function sair(msg) { ls.set('bibLeitor', null); D = null; C = null; DG = null; LV = null; V = 'entrar'; PG = 'inicio'; render(); if (msg) toast(msg, 'bad'); }
 const token = () => ls.get('bibLeitor');
 async function carregar() { D = await api('leitor.dados', { token: token() }, 'Carregando…'); V = 'app'; render(); }
-const irPara = pg => { PG = pg; MENU = false; FC.id = ''; if (pg === 'cantigas' && !C) { run(async () => { C = await api('leitor.cantigas', { token: token() }, 'Carregando as cantigas…'); render(); }); return; } render(); window.scrollTo(0, 0); };
+const irPara = pg => { PG = pg; MENU = false; FC.id = ''; if (pg !== 'virtual') LV = null; if (pg === 'virtual' && !DG) { run(async () => { DG = await api('leitor.digitais', { token: token() }, 'Carregando os livros digitais…'); render(); }); return; } if (pg === 'cantigas' && !C) { run(async () => { C = await api('leitor.cantigas', { token: token() }, 'Carregando as cantigas…'); render(); }); return; } render(); window.scrollTo(0, 0); };
 
 /* ---------- login ---------- */
 const card = body => `<div class="login"><div class="login-card">
@@ -108,7 +108,7 @@ const LOGIN = {
 };
 
 /* ---------- moldura (barra lateral, topo e navegação do celular) ---------- */
-const PAGINAS = () => [['inicio', 'Início', IC.home], ['catalogo', 'Catálogo Físico', IC.book], ['virtual', 'Biblioteca Virtual', IC.pdf, true]].concat(D.leitor.associado ? [['cantigas', 'Cantigas', IC.music]] : []);
+const PAGINAS = () => [['inicio', 'Início', IC.home], ['catalogo', 'Catálogo Físico', IC.book], ['virtual', 'Biblioteca Virtual', IC.pdf]].concat(D.leitor.associado ? [['cantigas', 'Cantigas', IC.music]] : []);
 const navBtn = ([id, label, icon, soon]) => `<button class="lp-nav" data-act="pg" data-pg="${id}" ${PG === id ? 'aria-current="page"' : ''}>${icon}<span>${label}</span>${soon ? '<span class="soon">em breve</span>' : ''}</button>`;
 function moldura(conteudo) {
   const contas = [['perfil', 'Meu Perfil', IC.user], ['ajuda', 'Ajuda', IC.help]];
@@ -138,7 +138,7 @@ function inicio() {
     ${D.bloqueios.length ? `<div class="note warn"><b>No momento você não pode retirar livros</b><span>${D.bloqueios.map(esc).join(' ')}</span></div>` : ''}
     <section class="lp-hero"><div><h2>Conhecimento também é caminho de luz.</h2><p>Explore nosso acervo de livros${l.associado ? ', cantigas' : ''} e muito mais, conectando-se com a nossa cultura.</p><button class="lp-btn dark" data-act="pg" data-pg="catalogo">Começar agora ${IC.arrow}</button></div></section>
     <h2 class="lp-h2">Acesso Rápido</h2>
-    <div class="lp-quick">${cards.map(([cls, icon, t, d, b, pg, art, btn]) => { const soon = pg === 'virtual'; return `<div class="lp-card ${cls}" ${soon ? '' : `data-act="pg" data-pg="${pg}"`}>${soon ? '<span class="soon">Em breve</span>' : ''}<div class="art">${art}</div><div class="ico">${icon}</div><div><h3>${t}</h3><p>${d}</p></div>
+    <div class="lp-quick">${cards.map(([cls, icon, t, d, b, pg, art, btn]) => { const soon = pg === 'virtual' && !D.digitaisN; return `<div class="lp-card ${cls}" ${soon ? '' : `data-act="pg" data-pg="${pg}"`}>${soon ? '<span class="soon">Em breve</span>' : ''}<div class="art">${art}</div><div class="ico">${icon}</div><div><h3>${t}</h3><p>${d}</p></div>
       <button class="lp-btn ${btn}" ${soon ? 'disabled' : `data-act="pg" data-pg="${pg}"`}>${b} ${IC.arrow}</button>${soon ? '' : IC.right.replace('<svg', '<svg class="chev"')}</div>`; }).join('')}</div>
     ${dest.length ? `<h2 class="lp-h2 has-more">Destaques <button class="more" data-act="pg" data-pg="catalogo">Ver todos →</button></h2>
       <div class="lp-dest-wrap"><button class="lp-arrow l" data-act="rolar" data-d="-1" aria-label="Anterior">${IC.left}</button><div class="lp-dest" id="dest">${dest.map(x => `<button class="lp-item" ${x.act}><span class="th">${x.img ? `<img src="${x.img}" alt="" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(ART.bookThumb))">` : x.tipo === 'Livro' ? ART.bookThumb : ART.notes}</span>
@@ -161,7 +161,60 @@ function listaObras() {
       <td class="actions">${pend.has(o.id) ? '<span class="pill warn">pedido feito</span>' : o.disp && !D.bloqueios.length ? `<button class="btn sm primary" data-act="pedir" data-id="${o.id}">Pedir retirada</button>` : ''}</td></tr>`).join('')}
   </tbody></table></div>`;
 }
-const virtual = () => `${cabecalho('Biblioteca Virtual')}<div class="lp-panel lp-soonpage">${ART.tablet}<h2>Em breve</h2><p class="muted">Aqui você vai poder ler os livros digitais da biblioteca direto na tela, onde e quando quiser.</p></div>`;
+/* ---------- biblioteca virtual (versão 1.7): PDF lido só na tela, com o nome do leitor em marca d'água ---------- */
+let DG = null, LV = null; const FD = { q: '', g: '' };
+const AUTZ_TXT = { 'Domínio público': 'Obra em domínio público.', 'Publicação própria da casa': 'Publicação da própria casa.', 'Autorizado pelo autor ou editora': 'Publicado com autorização do autor ou da editora.' };
+function listaDigitais() {
+  const q = norm(FD.q), l = DG.digitais.filter(d => (!FD.g || d.genero === FD.g) && (!q || norm(`${d.titulo} ${d.autor}`).includes(q))).sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'));
+  if (!l.length) return `<p class="muted">${DG.digitais.length ? 'Nenhum livro encontrado.' : 'Ainda não há livros digitais. Volte em breve!'}</p>`;
+  return `<div class="lv-grade">${l.map(d => `<button class="lv-livro" data-act="lvAbrir" data-id="${d.id}"><span class="cap">${d.capa ? `<img src="${d.capa}" alt="">` : ART.bookThumb}</span><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || '')}</span>${d.soAssociados ? '<span class="lp-tag c">Associados</span>' : ''}</button>`).join('')}</div>`;
+}
+function virtual() {
+  if (!DG) return cabecalho('Biblioteca Virtual') + '<p class="muted">Carregando…</p>';
+  if (LV) { const d = LV.d; return `<div class="lv-topo"><button class="btn sm ghost" data-act="lvFechar">← Voltar aos livros</button><div class="lv-tit"><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || '')}</span></div></div>
+      ${LV.pdf ? `<div class="lv-barra"><button class="lp-btn light" data-act="lvPag" data-d="-1" aria-label="Página anterior">${IC.left}</button><span class="lv-ind"><input id="lv-ir" inputmode="numeric" value="${LV.pag}" aria-label="Página"> de ${LV.total}</span><button class="lp-btn light" data-act="lvPag" data-d="1" aria-label="Próxima página">${IC.right}</button>
+        <span class="lv-zoom"><button class="lp-btn light" data-act="lvZoom" data-d="-1" aria-label="Diminuir">−</button><button class="lp-btn light" data-act="lvZoom" data-d="1" aria-label="Aumentar">+</button></span></div>
+        <div class="lv-folha" id="lv-folha"><canvas id="lv-canvas"></canvas></div><p class="small muted lv-aviso">Leitura só nesta tela. ${esc(AUTZ_TXT[d.autorizacao] || '')} Cada página mostra o nome de quem está lendo.</p>`
+      : `<div class="lp-panel"><p id="lv-prog">Abrindo o livro…</p></div>`}`; }
+  const gens = [...new Set(DG.digitais.map(d => d.genero).filter(Boolean))], gNome = s => ((D.generos || []).find(g => g.sigla === s) || { nome: s }).nome;
+  return `${cabecalho('Biblioteca Virtual', 'Leia os livros digitais da biblioteca aqui mesmo, no celular ou no computador.')}
+    <div class="toolbar"><label class="search" style="flex:1 1 240px"><span class="sr">Buscar</span>${IC.search}<input data-in="dq" value="${esc(FD.q)}" placeholder="Título ou autor" autocomplete="off"></label>
+      ${gens.length > 1 ? `<select data-ch="dg" aria-label="Gênero"><option value="">Todos os gêneros</option>${gens.map(g => `<option value="${g}" ${FD.g === g ? 'selected' : ''}>${esc(gNome(g))}</option>`).join('')}</select>` : ''}</div>
+    <div id="dlista">${listaDigitais()}</div>`;
+}
+const carregarScript = src => new Promise((res, rej) => { if (document.querySelector(`script[src="${src}"]`)) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Não foi possível abrir o leitor de PDF. Confira a internet e tente de novo.')); document.head.appendChild(s); });
+const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+async function abrirLivro(d) {
+  LV = { d, pdf: null, pag: 1, total: 0, zoom: 1 }; render(); window.scrollTo(0, 0);
+  await carregarScript(PDFJS + 'pdf.min.js'); pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js';
+  const pedacos = [];
+  for (let i = 0; i < d.partes; i++) {
+    const r = await api('leitor.digitalParte', { token: token(), id: d.id, parte: i }, d.partes > 1 ? `Abrindo o livro… ${i + 1} de ${d.partes}` : 'Abrindo o livro…');
+    if (!LV || LV.d.id !== d.id) return; const bin = atob(r.dados), u8 = new Uint8Array(bin.length); for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k); pedacos.push(u8);
+  }
+  const tam = pedacos.reduce((s, p) => s + p.length, 0), dados = new Uint8Array(tam); let o = 0; pedacos.forEach(p => { dados.set(p, o); o += p.length; });
+  const pdf = await pdfjsLib.getDocument({ data: dados, isEvalSupported: false }).promise; if (!LV || LV.d.id !== d.id) return;
+  let ult = 1; try { ult = +localStorage.getItem('bibPag_' + d.id) || 1; } catch (e) { }
+  Object.assign(LV, { pdf, total: pdf.numPages, pag: Math.min(Math.max(1, ult), pdf.numPages) }); render();
+}
+let desenhando = null;
+async function desenharPagina() {
+  if (!LV || !LV.pdf) return; const cv = $('#lv-canvas'), box = $('#lv-folha'); if (!cv || !box) return;
+  if (desenhando) { try { desenhando.cancel(); } catch (e) { } }
+  const page = await LV.pdf.getPage(LV.pag), base = page.getViewport({ scale: 1 }), larg = Math.max(280, Math.min(box.clientWidth - 2, 900));
+  const esc1 = larg / base.width * LV.zoom, dpr = Math.min(window.devicePixelRatio || 1, 2), vp = page.getViewport({ scale: esc1 * dpr });
+  cv.width = vp.width; cv.height = vp.height; cv.style.width = Math.round(vp.width / dpr) + 'px'; cv.style.height = Math.round(vp.height / dpr) + 'px';
+  const ctx = cv.getContext('2d'); desenhando = page.render({ canvasContext: ctx, viewport: vp });
+  try { await desenhando.promise; } catch (e) { return; } desenhando = null;
+  // marca d'água: nome e parte do CPF do leitor, em diagonal, bem leve
+  const fs = Math.max(14, Math.round(vp.width / 28)); ctx.save(); ctx.globalAlpha = 0.11; ctx.fillStyle = '#1c2533'; ctx.font = `600 ${fs}px sans-serif`; ctx.textAlign = 'center';
+  ctx.translate(vp.width / 2, vp.height / 2); ctx.rotate(-Math.atan2(vp.height, vp.width));
+  const diag = Math.hypot(vp.width, vp.height); for (let y = -diag / 2; y < diag / 2; y += fs * 6) ctx.fillText(DG.marca, 0, y);
+  ctx.restore(); ctx.save(); ctx.globalAlpha = 0.45; ctx.fillStyle = '#1c2533'; ctx.font = `${Math.round(fs * 0.55)}px sans-serif`; ctx.fillText(`${DG.marca} · ${hoje().split('-').reverse().join('/')}`, fs * 0.6, vp.height - fs * 0.6); ctx.restore();
+  try { localStorage.setItem('bibPag_' + LV.d.id, LV.pag); } catch (e) { }
+  const ind = $('#lv-ir'); if (ind) ind.value = LV.pag;
+}
+const irPag = n => { if (!LV || !LV.pdf) return; const p = Math.min(Math.max(1, n), LV.total); if (p === LV.pag) return; LV.pag = p; desenharPagina(); const f = $('#lv-folha'); if (f) f.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
 const SOL = { pendente: ['Aguardando a biblioteca', 'warn'], confirmada: ['Confirmado', 'ok'], recusada: ['Não confirmado', 'bad'], expirada: ['Expirou', 'mute'], cancelada: ['Cancelado', 'mute'] };
 function perfil() {
   const l = D.leitor, at = D.emprestimos.filter(x => !x.dataDev), hist = D.emprestimos.filter(x => x.dataDev), h = hoje();
@@ -182,6 +235,7 @@ const FAQ = [
   ['Como assino o protocolo pelo gov.br?', 'O protocolo chega no seu e-mail em PDF. Acesse assinador.iti.br, entre com a sua conta gov.br (nível prata ou ouro), assine no campo "Assinatura do usuário" e responda o e-mail com o PDF assinado. Se preferir, assine no papel na biblioteca.'],
   ['Qual o prazo para devolver?', 'O prazo aparece em Meu Perfil, em "Comigo agora". Se precisar de mais tempo, fale com a biblioteca para renovar antes do vencimento.'],
   ['Esqueci a minha senha.', 'Na tela de entrada, use "Primeiro acesso ou esqueci a senha": enviamos um código para o seu e-mail. Sem e-mail no cadastro, peça o código a um operador da biblioteca.'],
+  ['Posso baixar ou imprimir os livros digitais?', 'Não. Os livros da Biblioteca Virtual são lidos só aqui no portal, e cada página mostra o nome de quem está lendo. O portal lembra a última página que você leu em cada livro.'],
   ['Quem vê as cantigas?', 'As cantigas são só para os associados da casa, com o cadastro em dia na Secretaria.'],
 ];
 const ajuda = () => `${cabecalho('Ajuda', 'Dúvidas mais comuns sobre o portal da biblioteca.')}<section class="lp-panel lp-faq">${FAQ.map(([q, a]) => `<details><summary>${q}</summary><p>${a}</p></details>`).join('')}</section>
@@ -222,6 +276,7 @@ function render() {
   if (V !== 'app') { $('#app').innerHTML = LOGIN[V](); const f = $('#app input'); if (f) f.focus(); return; }
   const pg = { inicio, catalogo, virtual, cantigas, perfil, ajuda }[PG] || inicio;
   $('#app').innerHTML = moldura(pg());
+  if (PG === 'virtual' && LV && LV.pdf) desenharPagina();
 }
 
 /* ---------- ações ---------- */
@@ -232,7 +287,11 @@ const ACT = {
   tema: t => { TEMA.set(t.dataset.t); render(); },
   menuFechar: (t, e) => { if (e.target === t) { MENU = false; render(); } },
   sair: () => sair(),
-  atualizar: () => run(async () => { await carregar(); if (C) C = await api('leitor.cantigas', { token: token() }, 'Atualizando…'); render(); }),
+  lvAbrir: t => { const d = DG.digitais.find(x => x.id === t.dataset.id); if (d) run(() => abrirLivro(d).catch(e => { LV = null; render(); throw e; })); },
+  lvFechar: () => { LV = null; render(); window.scrollTo(0, 0); },
+  lvPag: t => irPag(LV.pag + +t.dataset.d),
+  lvZoom: t => { if (!LV) return; LV.zoom = Math.min(2.5, Math.max(0.6, +(LV.zoom + 0.25 * +t.dataset.d).toFixed(2))); desenharPagina(); },
+  atualizar: () => run(async () => { await carregar(); if (C) C = await api('leitor.cantigas', { token: token() }, 'Atualizando…'); if (DG) DG = await api('leitor.digitais', { token: token() }, 'Atualizando…'); render(); }),
   fechar: (t, e) => { if (e.target === t || t.tagName === 'BUTTON') modal(''); },
   rolar: t => { const d = $('#dest'); if (d) d.scrollBy({ left: +t.dataset.d * 290, behavior: 'smooth' }); },
   verObra: t => { const o = D.obras.find(x => x.id === t.dataset.id); F.q = o ? o.titulo : ''; F.g = ''; irPara('catalogo'); },
@@ -271,6 +330,11 @@ document.addEventListener('input', e => {
   if (e.target.matches('[data-cpf]')) { const p = e.target.selectionStart === e.target.value.length; e.target.value = fmtCPF(e.target.value); if (p) e.target.selectionStart = e.target.selectionEnd = e.target.value.length; }
   if (e.target.dataset.in === 'q') { F.q = e.target.value; $('#lista').innerHTML = listaObras(); }
   if (e.target.dataset.in === 'cq') { FC.q = e.target.value; $('#clista').innerHTML = listaCantigas(); }
+  if (e.target.dataset.in === 'dq') { FD.q = e.target.value; $('#dlista').innerHTML = listaDigitais(); }
 });
-document.addEventListener('change', e => { const k = e.target.dataset.ch; if (k === 'g') { F.g = e.target.value; $('#lista').innerHTML = listaObras(); } if (k === 'ctoq') { FC.toq = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'ccasa') { FC.casa = e.target.checked; $('#clista').innerHTML = listaCantigas(); } });
+document.addEventListener('change', e => { const k = e.target.dataset.ch; if (k === 'dg') { FD.g = e.target.value; $('#dlista').innerHTML = listaDigitais(); } if (e.target.id === 'lv-ir') irPag(parseInt(e.target.value, 10) || 1); if (k === 'g') { F.g = e.target.value; $('#lista').innerHTML = listaObras(); } if (k === 'ctoq') { FC.toq = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'ccasa') { FC.casa = e.target.checked; $('#clista').innerHTML = listaCantigas(); } });
 if (token()) run(carregar).then(() => { if (!D) { V = 'entrar'; render(); } }); else render();
+// versão 1.7: leitor de PDF — setas do teclado mudam a página; sem menu do botão direito; redesenha ao girar o celular
+document.addEventListener('keydown', e => { if (!LV || !LV.pdf || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return; if (e.key === 'ArrowRight') irPag(LV.pag + 1); if (e.key === 'ArrowLeft') irPag(LV.pag - 1); });
+document.addEventListener('contextmenu', e => { if (e.target.closest('.lv-folha')) e.preventDefault(); });
+let lvTimer; window.addEventListener('resize', () => { clearTimeout(lvTimer); lvTimer = setTimeout(() => { if (LV && LV.pdf) desenharPagina(); }, 250); });
