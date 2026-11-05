@@ -438,9 +438,11 @@ function shell(content) {
     ${bn('catalogo', 'Catálogo', ic('book'))}
     <button class="main-act" data-act="go" data-v="emprestar" ${cur === 'emprestar' ? 'aria-current="page"' : ''}><span class="ic">${ic('swap')}</span><span>Emprestar</span></button>
     <button data-act="go" data-v="emprestados" ${cur === 'emprestados' ? 'aria-current="page"' : ''}>${ic('list')}<span>Emprestados</span>${k.atrasados ? `<span class="dot">${k.atrasados}</span>` : ''}</button>
-    <button data-act="menu" ${['usuarios', 'etiquetas', 'alertas', 'auditoria', 'ocorrencias', 'configuracoes', 'operadores', 'atividades'].includes(cur) ? 'aria-current="page"' : ''}>${ic('more')}<span>Mais</span>${k.ocPend ? `<span class="dot">${k.ocPend}</span>` : ''}</button>
+    <button data-act="menu" ${['usuarios', 'etiquetas', 'alertas', 'auditoria', 'ocorrencias', 'configuracoes', 'operadores', 'atividades', 'pedidos', 'cantigas'].includes(cur) ? 'aria-current="page"' : ''}>${ic('more')}<span>Mais</span>${k.ocPend + solPend().length ? `<span class="dot">${k.ocPend + solPend().length}</span>` : ''}</button>
   </nav>
   ${UI.menu ? `<div class="overlay" data-act="menuClose" style="place-items:end stretch;padding:0"></div><div class="sheet-menu" role="menu">
+    <button data-act="go" data-v="pedidos">${ic('bell')} Pedidos do portal${solPend().length ? ` (${solPend().length} aguardando)` : ''}</button>
+    <button data-act="go" data-v="cantigas">${ic('music')} Cantigas</button>
     <button data-act="go" data-v="ocorrencias">${ic('alert')} Ocorrências${k.ocPend ? ` (${k.ocPend} pendentes)` : ''}</button>
     <button data-act="go" data-v="usuarios">${ic('users')} Usuários autorizados</button>
     <button data-act="go" data-v="etiquetas">${ic('tag')} Etiquetas</button>
