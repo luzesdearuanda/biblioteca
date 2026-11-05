@@ -135,6 +135,7 @@ const I = {
   list: '<path d="M9 6h12M9 12h12M9 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>',
   tag: '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
   bell: '<path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
+  tema: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M2.5 12h3M18.5 12h3M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/>',
   shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -425,7 +426,7 @@ function shell(content) {
     <aside class="side">
       <div class="side-brand"><div class="logo-sm"><img src="${LOGO}" alt=""></div><div><b>Luzes de Aruanda</b><span>Biblioteca da associação</span></div></div>
       <nav class="nav" aria-label="Menu principal">${nav}</nav>
-      <div class="side-user"><div><b>${esc(S.session.nome)}</b> <span class="role">${S.session.perfil}</span></div><div class="email">${esc(S.session.email)}</div><button data-act="logout">Sair</button></div>
+      <div class="side-user"><div><b>${esc(S.session.nome)}</b> <span class="role">${S.session.perfil}</span></div><div class="email">${esc(S.session.email)}</div><button data-act="tema" title="Trocar entre automático, claro e escuro">Tema: ${TEMA.nomes[TEMA.get()]}</button><button data-act="logout">Sair</button></div>
     </aside>
     <div class="main">
       <header class="topbar"><div class="logo-sm"><img src="${LOGO}" alt=""></div><b>Biblioteca Luzes de Aruanda</b><span class="role">${S.session.perfil}</span></header>
@@ -448,6 +449,7 @@ function shell(content) {
     ${isAdmin() ? `<button data-act="go" data-v="configuracoes">${ic('gear')} Configurações</button>
     <button data-act="go" data-v="operadores">${ic('shield')} Operadores</button>
     <button data-act="go" data-v="atividades">${ic('clock')} Registro de atividades</button>` : ''}
+    <button data-act="tema">${ic('tema')} Tema: ${TEMA.nomes[TEMA.get()]}</button>
     <button data-act="logout">${ic('logout')} Sair (${esc(S.session.email)})</button>
   </div>` : ''}`;
 }
@@ -2265,6 +2267,7 @@ Object.assign(ACT, {
   toqNovo() { cantToqModal(null); },
   toqEditar(t) { cantToqModal((S.cantToques || []).find(y => y.id === t.dataset.id)); },
   toqSalvar(t) { run(async () => { await api('cant.toque.salvar', { id: t.dataset.id || undefined, nome: $('#tq-nome').value, ativa: $('#tq-at') ? $('#tq-at').checked : true }); closeModal(); render(); toast('Toque salvo'); }); },
+  tema() { const o = ['auto', 'claro', 'escuro']; TEMA.set(o[(o.indexOf(TEMA.get()) + 1) % 3]); render(); },
   opCurimba(t) { const o = S.operadores.find(x => x.email === t.dataset.email); run(async () => { await api('operador.curimba', { email: o.email, curimba: !o.curimba }); render(); }); },
   gemSalvar() { const k = $('#c-gem').value.trim(); if (!k) { toast('Cole a chave.', 'bad'); return; } run(async () => { const r = await api('config.gemini', { chave: k }); S.geminiOk = r.geminiOk; render(); toast('Transcrição ativada'); }); },
   gemRemover() { run(async () => { await api('config.gemini', { chave: '' }); S.geminiOk = false; render(); toast('Chave removida'); }); },
