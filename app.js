@@ -127,6 +127,7 @@ const showCPF = c => isAdmin() ? fmtCPF(c) : maskCPF(c);
 
 /* Ícones */
 const I = {
+  tablet: '<rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M9 7h6M9 10.5h6M9 14h4"/><path d="M11 18.5h2"/>',
   music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
   home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   book: '<path d="M4 19V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2 2 2 0 0 0 2 2h13"/><path d="M8 7h7"/>',
@@ -215,7 +216,7 @@ async function api(action, payload = {}, opt = {}) {
     throw e;
   } finally { if (!opt.silent) busy(false); }
 }
-const TBL = { Obras: ['obras', 'id'], Exemplares: ['exemplares', 'id'], Usuarios: ['usuarios', 'id'], Emprestimos: ['emprestimos', 'id'], Protocolos: ['protocolos', 'id'], Ocorrencias: ['ocorrencias', 'id'], Generos: ['generos', 'sigla'], Operadores: ['operadores', 'email'], Auditorias: ['auditorias', 'id'], Solicitacoes: ['solicitacoes', 'id'], Acessos: ['acessos', 'userId'], Cantigas: ['cantigas', 'id'], CantSecoes: ['cantSecoes', 'id'], CantToques: ['cantToques', 'id'] };
+const TBL = { Obras: ['obras', 'id'], Exemplares: ['exemplares', 'id'], Usuarios: ['usuarios', 'id'], Emprestimos: ['emprestimos', 'id'], Protocolos: ['protocolos', 'id'], Ocorrencias: ['ocorrencias', 'id'], Generos: ['generos', 'sigla'], Operadores: ['operadores', 'email'], Auditorias: ['auditorias', 'id'], Solicitacoes: ['solicitacoes', 'id'], Acessos: ['acessos', 'userId'], Cantigas: ['cantigas', 'id'], CantSecoes: ['cantSecoes', 'id'], CantToques: ['cantToques', 'id'], Digitais: ['digitais', 'id'] };
 function applyChanges(ch) {
   if (!S) return;
   Object.keys(TBL).forEach(name => {
@@ -379,6 +380,7 @@ const NAV = [
   { id: 'usuarios', label: 'Usuários autorizados', ic: 'users' },
   { id: 'etiquetas', label: 'Etiquetas', ic: 'tag' },
   { id: 'cantigas', label: 'Cantigas', ic: 'music' },
+  { id: 'virtual', label: 'Biblioteca Virtual', ic: 'tablet' },
   { sec: 'Rotinas' },
   { id: 'alertas', label: 'Alertas por e-mail', ic: 'bell' },
   { id: 'auditoria', label: 'Auditoria do acervo', ic: 'clip', badge: () => audAtual() ? '•' : 0 },
@@ -439,11 +441,12 @@ function shell(content) {
     ${bn('catalogo', 'Catálogo', ic('book'))}
     <button class="main-act" data-act="go" data-v="emprestar" ${cur === 'emprestar' ? 'aria-current="page"' : ''}><span class="ic">${ic('swap')}</span><span>Emprestar</span></button>
     <button data-act="go" data-v="emprestados" ${cur === 'emprestados' ? 'aria-current="page"' : ''}>${ic('list')}<span>Emprestados</span>${k.atrasados ? `<span class="dot">${k.atrasados}</span>` : ''}</button>
-    <button data-act="menu" ${['usuarios', 'etiquetas', 'alertas', 'auditoria', 'ocorrencias', 'configuracoes', 'operadores', 'atividades', 'pedidos', 'cantigas'].includes(cur) ? 'aria-current="page"' : ''}>${ic('more')}<span>Mais</span>${k.ocPend + solPend().length ? `<span class="dot">${k.ocPend + solPend().length}</span>` : ''}</button>
+    <button data-act="menu" ${['usuarios', 'etiquetas', 'alertas', 'auditoria', 'ocorrencias', 'configuracoes', 'operadores', 'atividades', 'pedidos', 'cantigas', 'virtual'].includes(cur) ? 'aria-current="page"' : ''}>${ic('more')}<span>Mais</span>${k.ocPend + solPend().length ? `<span class="dot">${k.ocPend + solPend().length}</span>` : ''}</button>
   </nav>
   ${UI.menu ? `<div class="overlay" data-act="menuClose" style="place-items:end stretch;padding:0"></div><div class="sheet-menu" role="menu">
     <button data-act="go" data-v="pedidos">${ic('bell')} Pedidos do portal${solPend().length ? ` (${solPend().length} aguardando)` : ''}</button>
     <button data-act="go" data-v="cantigas">${ic('music')} Cantigas</button>
+    <button data-act="go" data-v="virtual">${ic('tablet')} Biblioteca Virtual</button>
     <button data-act="go" data-v="ocorrencias">${ic('alert')} Ocorrências${k.ocPend ? ` (${k.ocPend} pendentes)` : ''}</button>
     <button data-act="go" data-v="usuarios">${ic('users')} Usuários autorizados</button>
     <button data-act="go" data-v="etiquetas">${ic('tag')} Etiquetas</button>
@@ -2308,3 +2311,72 @@ Object.assign(CHG, {
   cantArq(el) { const f = el.files[0]; if (!f) return; if (f.size > 15 * 1024 * 1024) { toast('Áudio maior que 15 MB.', 'bad'); return; } UI.cant.blob = f; UI.cant.url = URL.createObjectURL(f); cantRefreshAudio(); },
 });
 INP.cantQ = el => { P.q = el.value; $('#cant-res').innerHTML = cantLista(); };
+
+/* ---- versão 1.7: biblioteca virtual (PDF lido só na tela, pelo portal do leitor) ---- */
+const AUTORIZ = { dominio: 'Domínio público', propria: 'Publicação própria da casa', autorizado: 'Autorizado pelo autor ou editora' };
+const MB = n => n < 1048576 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' MB';
+function digLista() {
+  const q = norm(P.q || ''), l = (S.digitais || []).filter(d => (P.inat || d.ativo) && (!q || norm(`${d.titulo} ${d.autor}`).includes(q))).sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'));
+  if (!l.length) return `<div class="table-wrap"><div class="empty">${(S.digitais || []).length ? 'Nenhum livro digital encontrado.' : 'Nenhum livro digital ainda. Clique em "Novo livro digital".'}</div></div>`;
+  const lt = S.leiturasDig || {};
+  return `<div class="table-wrap cards"><table><thead><tr><th>Livro</th><th>Autorização</th><th>PDF</th><th>Leituras</th></tr></thead><tbody>
+    ${l.map(d => `<tr class="${d.ativo ? '' : 'dim'}"><td class="lead"><button class="linklike dig-row" data-act="digEditar" data-id="${d.id}">${d.capa ? `<img src="${d.capa}" alt="">` : `<span class="dig-sem">${ic('tablet')}</span>`}<span><span class="t">${esc(d.titulo)}</span><span class="s">${esc(d.autor || '—')}${d.genero ? ' · ' + esc(generoNome(d.genero)) : ''}</span></span></button></td>
+      <td data-label="Autorização" class="small">${esc(AUTORIZ[d.autorizacao] || '—')}${d.soAssociados ? '<br>' + pill('só associados', 'info') : ''}</td>
+      <td data-label="PDF">${(d.partes || []).length ? esc(MB(d.tamanho)) : pill('sem PDF', 'warn')}${d.ativo ? '' : ' ' + pill('desativado', 'mute')}</td>
+      <td data-label="Leituras">${lt[d.id] || 0}</td></tr>`).join('')}</tbody></table></div>`;
+}
+VIEWS.virtual = {
+  render() {
+    return `<div class="page-head"><div><h1>Biblioteca Virtual</h1><p class="sub">Livros em PDF para os leitores lerem na tela, pelo portal, sem baixar nem imprimir. Cada página leva o nome do leitor como marca d'água.</p></div>
+        <div class="toolbar"><button class="btn primary" data-act="digNovo">${ic('plus')} Novo livro digital</button></div></div>
+      <div class="note"><b>Publique só o que pode ser publicado</b><span>Livros em domínio público (no Brasil, em geral autor falecido há mais de 70 anos), publicações da própria casa ou com autorização por escrito do autor ou da editora.</span></div>
+      <div class="toolbar"><label class="search" style="flex:1 1 220px"><span class="sr">Buscar</span>${ic('search')}<input data-in="digQ" value="${esc(P.q || '')}" placeholder="Título ou autor" autocomplete="off"></label>
+        <label class="check small"><input type="checkbox" data-ch="digInat" ${P.inat ? 'checked' : ''}> Desativados</label></div>
+      <div id="dig-res">${digLista()}</div>`;
+  }
+};
+function digForm(d) {
+  d = d || { autorizacao: '', ativo: true, partes: [] }; UI.dig = { id: d.id || '', capa: d.capa || '', pdf: null };
+  const gens = (S.generos || []).slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')), obras = S.obras.slice().sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'));
+  return `<h2>${d.id ? 'Editar livro digital' : 'Novo livro digital'}</h2><div class="fields">
+    <div class="field full"><label for="dg-tit">Título</label><input id="dg-tit" maxlength="200" value="${esc(d.titulo || '')}"></div>
+    <div class="field"><label for="dg-aut">Autor</label><input id="dg-aut" maxlength="150" value="${esc(d.autor || '')}"></div>
+    <div class="field"><label for="dg-ano">Ano</label><input id="dg-ano" inputmode="numeric" maxlength="4" value="${esc(d.ano || '')}"></div>
+    <div class="field"><label for="dg-gen">Gênero</label><select id="dg-gen"><option value="">—</option>${gens.map(g => `<option value="${g.sigla}" ${d.genero === g.sigla ? 'selected' : ''}>${esc(g.nome)}</option>`).join('')}</select></div>
+    <div class="field"><label for="dg-obra">Mesmo livro no catálogo físico (opcional)</label><select id="dg-obra"><option value="">—</option>${obras.map(o => `<option value="${o.id}" ${d.obraId === o.id ? 'selected' : ''}>${esc(o.titulo)}${o.autor ? ' — ' + esc(o.autor) : ''}</option>`).join('')}</select></div>
+    <div class="field full"><label for="dg-desc">Descrição (aparece para o leitor)</label><textarea id="dg-desc" maxlength="1000" style="min-height:70px">${esc(d.descricao || '')}</textarea></div>
+    <div class="field"><label for="dg-autz">Autorização para publicar</label><select id="dg-autz" data-ch="digAutz"><option value="">Escolha…</option>${Object.keys(AUTORIZ).map(k => `<option value="${k}" ${d.autorizacao === k ? 'selected' : ''}>${AUTORIZ[k]}</option>`).join('')}</select></div>
+    <div class="field" id="dg-obs-f" ${d.autorizacao === 'autorizado' ? '' : 'hidden'}><label for="dg-obs">Quem autorizou e como</label><input id="dg-obs" maxlength="300" value="${esc(d.autorizacaoObs || '')}" placeholder="Ex.: e-mail da editora em 10/11/2026"></div>
+    <div class="field full"><label class="check"><input type="checkbox" id="dg-assoc" ${d.soAssociados ? 'checked' : ''}> Só para associados da casa (ex.: apostilas internas)</label></div>
+    <div class="field"><span class="lbl" style="font-weight:600">Capa (opcional)</span><div class="inline"><span id="dg-capa-prev" class="dig-capa">${d.capa ? `<img src="${d.capa}" alt="">` : ic('tablet')}</span><label class="btn sm">Escolher imagem<input type="file" accept="image/*" hidden data-ch="digCapa"></label>${d.capa ? '<button type="button" class="btn sm ghost" data-act="digCapaTirar">Tirar</button>' : ''}</div></div>
+    <div class="field"><span class="lbl" style="font-weight:600">Arquivo PDF ${d.id && (d.partes || []).length ? '(atual: ' + MB(d.tamanho) + ')' : ''}</span><label class="btn sm">${d.id && (d.partes || []).length ? 'Trocar PDF' : 'Escolher PDF'}<input type="file" accept="application/pdf,.pdf" hidden data-ch="digPdf"></label><span class="hint" id="dg-pdf-nome">Até 20 MB.</span></div>
+    ${d.id ? `<div class="field full"><label class="check"><input type="checkbox" id="dg-ativo" ${d.ativo ? 'checked' : ''}> Ativo (aparece no portal)</label></div>` : ''}
+  </div><div class="modal-actions"><button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="digSalvar">Salvar</button></div>`;
+}
+function capaReduzida(file) {
+  return new Promise((res, rej) => { const img = new Image(), url = URL.createObjectURL(file); img.onload = () => {
+    const h = Math.min(420, img.naturalHeight), w = Math.round(img.naturalWidth * h / img.naturalHeight), cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(img, 0, 0, w, h); URL.revokeObjectURL(url);
+    let q = 0.82, s = cv.toDataURL('image/jpeg', q); while (s.length > 78000 && q > 0.3) { q -= 0.12; s = cv.toDataURL('image/jpeg', q); } s.length > 78000 ? rej(new Error('Imagem grande demais para capa.')) : res(s); };
+    img.onerror = () => rej(new Error('Não foi possível ler a imagem.')); img.src = url; });
+}
+async function digEnviarPdf(id, file) {
+  const PARTE = 3 * 1024 * 1024, total = Math.ceil(file.size / PARTE), envio = 'up' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  for (let i = 0; i < total; i++) await api('dig.upload', { id, envio, parte: i, total, dados: await blobB64(file.slice(i * PARTE, (i + 1) * PARTE)) }, { msg: `Enviando o PDF… parte ${i + 1} de ${total}` });
+}
+Object.assign(ACT, {
+  digNovo() { openModal(digForm()); },
+  digEditar(t) { openModal(digForm((S.digitais || []).find(x => x.id === t.dataset.id))); },
+  digCapaTirar() { UI.dig.capa = ''; $('#dg-capa-prev').innerHTML = ic('tablet'); },
+  digSalvar() {
+    const v = s => ($(s) ? $(s).value : ''), u = UI.dig, d = { id: u.id || undefined, titulo: v('#dg-tit'), autor: v('#dg-aut'), ano: v('#dg-ano'), genero: v('#dg-gen'), obraId: v('#dg-obra'), descricao: v('#dg-desc'), autorizacao: v('#dg-autz'), autorizacaoObs: v('#dg-obs'), soAssociados: $('#dg-assoc').checked, capa: u.capa, ativo: $('#dg-ativo') ? $('#dg-ativo').checked : true };
+    if (!u.id && !u.pdf) { toast('Escolha o arquivo PDF.', 'bad'); return; }
+    run(async () => { const r = await api('dig.salvar', d, { msg: 'Salvando…' }); if (u.pdf) await digEnviarPdf(r.id, u.pdf); closeModal(); render(); toast(u.pdf ? 'Livro digital salvo com o PDF' : 'Livro digital salvo'); });
+  },
+});
+Object.assign(CHG, {
+  digInat(el) { P.inat = el.checked ? '1' : ''; $('#dig-res').innerHTML = digLista(); },
+  digAutz(el) { $('#dg-obs-f').hidden = el.value !== 'autorizado'; },
+  digCapa(el) { const f = el.files[0]; if (!f) return; run(async () => { UI.dig.capa = await capaReduzida(f); $('#dg-capa-prev').innerHTML = `<img src="${UI.dig.capa}" alt="">`; }); },
+  digPdf(el) { const f = el.files[0]; if (!f) return; if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') { toast('Escolha um arquivo PDF.', 'bad'); return; } if (f.size > 20 * 1024 * 1024) { toast(`PDF com ${MB(f.size)}: o limite é 20 MB. Comprima o arquivo (ex.: ilovepdf.com → Comprimir PDF) e tente de novo.`, 'bad'); el.value = ''; return; } UI.dig.pdf = f; $('#dg-pdf-nome').textContent = `${f.name} (${MB(f.size)})`; },
+});
+INP.digQ = el => { P.q = el.value; $('#dig-res').innerHTML = digLista(); };
