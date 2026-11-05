@@ -212,7 +212,7 @@ async function api(action, payload = {}, opt = {}) {
     throw e;
   } finally { if (!opt.silent) busy(false); }
 }
-const TBL = { Obras: ['obras', 'id'], Exemplares: ['exemplares', 'id'], Usuarios: ['usuarios', 'id'], Emprestimos: ['emprestimos', 'id'], Protocolos: ['protocolos', 'id'], Ocorrencias: ['ocorrencias', 'id'], Generos: ['generos', 'sigla'], Operadores: ['operadores', 'email'], Auditorias: ['auditorias', 'id'] };
+const TBL = { Obras: ['obras', 'id'], Exemplares: ['exemplares', 'id'], Usuarios: ['usuarios', 'id'], Emprestimos: ['emprestimos', 'id'], Protocolos: ['protocolos', 'id'], Ocorrencias: ['ocorrencias', 'id'], Generos: ['generos', 'sigla'], Operadores: ['operadores', 'email'], Auditorias: ['auditorias', 'id'], Solicitacoes: ['solicitacoes', 'id'], Acessos: ['acessos', 'userId'] };
 function applyChanges(ch) {
   if (!S) return;
   Object.keys(TBL).forEach(name => {
@@ -304,7 +304,7 @@ function loanSt(l) {
   if (d <= S.config.antecedencia) return { code: 'breve', label: 'Vence em breve', cls: 'warn', dias: d, note: d === 0 ? 'vence hoje' : `vence em ${plural(d, 'dia', 'dias')}` };
   return { code: 'emdia', label: 'Em dia', cls: 'info', dias: d, note: `faltam ${d} dias` };
 }
-const EX_CLS = { 'Disponível': 'ok', 'Emprestado': 'info', 'Reservado': 'warn', 'Em manutenção': 'warn', 'Baixado': 'mute' };
+const EX_CLS = { 'Separado': 'warn', 'Disponível': 'ok', 'Emprestado': 'info', 'Reservado': 'warn', 'Em manutenção': 'warn', 'Baixado': 'mute' };
 const US_CLS = { 'Ativo': 'ok', 'Bloqueado': 'bad', 'Inativo': 'mute' };
 const OC_CLS = { pendente: 'bad', quitada: 'ok', cancelada: 'mute' };
 const OC_LBL = { pendente: 'Pendente', quitada: 'Quitada', cancelada: 'Cancelada' };
@@ -369,6 +369,7 @@ const NAV = [
   { id: 'inicio', label: 'Início', ic: 'home' },
   { id: 'emprestar', label: 'Novo empréstimo', ic: 'swap' },
   { id: 'emprestados', label: 'Livros emprestados', ic: 'list', badge: () => kpis().atrasados },
+  { id: 'pedidos', label: 'Pedidos do portal', ic: 'bell', badge: () => solPend().length },
   { id: 'ocorrencias', label: 'Ocorrências', ic: 'alert', badge: () => kpis().ocPend },
   { sec: 'Cadastros' },
   { id: 'catalogo', label: 'Catálogo', ic: 'book' },
@@ -712,6 +713,7 @@ VIEWS.usuario = {
         ${u.status === 'Ativo' ? `<button class="btn danger" data-act="usStatus" data-id="${u.id}" data-to="Bloqueado">Bloquear</button><button class="btn" data-act="usStatus" data-id="${u.id}" data-to="Inativo">Inativar</button>` : u.obs === MARCA_SECRETARIA ? '<span class="small muted">Reative na Secretaria</span>' : `<button class="btn" data-act="usStatus" data-id="${u.id}" data-to="Ativo">Reativar</button>`}
         <button class="btn primary" data-act="go" data-v="emprestar" data-cpf="${u.cpf}" ${bl.length ? 'disabled' : ''}>${ic('swap')} Novo empréstimo</button></div></div></div>
       ${bl.length ? `<div class="note warn"><b>Não pode retirar livros agora</b><ul>${bl.map(r => `<li>${esc(r)}</li>`).join('')}</ul></div>` : ''}
+      ${portalInfo(u)}
       ${u.assocId ? `<div class="note info"><b>${assocInfo(u)}</b><span>Cadastro criado e atualizado pela Secretaria. Nome, CPF, e-mail, telefone e situação de associado são alterados lá.${u.sincEm ? ` Última atualização: ${fmtD(u.sincEm.slice(0, 10))}.` : ''}</span></div>` : ''}
       <section class="panel"><dl class="facts">
         <div><dt>CPF${u.cpfResp ? ' (do responsável)' : ''}</dt><dd class="mono">${u.cpf ? showCPF(u.cpf) : '—'}</dd></div>
@@ -1075,6 +1077,7 @@ VIEWS.configuracoes = {
           ${num('c-max', 'Máximo de exemplares por usuário', c.maxExemplares, 'Empréstimos simultâneos.', 1, 20)}
           ${num('c-renov', 'Renovações permitidas', c.renovacoes, '0 desativa a renovação.', 0, 5)}
           ${num('c-drenov', 'Dias por renovação', c.diasRenov, 'Somados ao vencimento atual.', 1, 120)}
+          ${num('c-dsol', 'Dias de separação (portal)', c.diasSolicitacao || 2, 'Quanto tempo o livro pedido pelo portal fica separado esperando confirmação.', 1, 15)}
           <div class="field full"><label class="check"><input type="checkbox" id="c-bloq" ${c.bloqueiaAtraso ? 'checked' : ''}> Bloquear novo empréstimo para quem está com livro atrasado</label></div>
           <div class="field full"><label class="check"><input type="checkbox" id="c-mesma" ${c.impedeMesmaObra ? 'checked' : ''}> Impedir duas cópias da mesma obra com o mesmo usuário</label></div>
         </div></fieldset>
@@ -1737,7 +1740,7 @@ const FORM = {
     okA = fieldErr('aemail', aEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(aEmail) ? 'Informe um e-mail válido.' : '') && okA;
     if (!okA) { $('.field.err input')?.focus(); return; }
     const config = {
-      prazo: n('#c-prazo'), maxExemplares: n('#c-max'), renovacoes: n('#c-renov'), diasRenov: n('#c-drenov'),
+      prazo: n('#c-prazo'), maxExemplares: n('#c-max'), renovacoes: n('#c-renov'), diasRenov: n('#c-drenov'), diasSolicitacao: n('#c-dsol'),
       bloqueiaAtraso: $('#c-bloq').checked, impedeMesmaObra: $('#c-mesma').checked, antecedencia: n('#c-ant'), repeticaoAtraso: n('#c-rep'),
       horario: $('#c-hora').value, emailResp: $('#c-resp').value.trim(), resumoResp: $('#c-resumo').checked,
       valorTaxa: String($('#c-taxa').value).replace(',', '.'), termo: $('#c-termo').value.trim(),
@@ -1814,7 +1817,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 /* ============ Auditoria do acervo ============ */
 // Item da auditoria: foto do exemplar no início (código, título, local, situação no sistema) + resultado da conferência.
-const AUD_FORA = ['Emprestado', 'Reservado'];
+const AUD_FORA = ['Emprestado', 'Reservado', 'Separado'];
 const audOrd = (a, b) => a.local.localeCompare(b.local, 'pt-BR') || a.num - b.num;
 function audAtual() { return (S.auditorias || []).find(a => a.status === 'andamento'); }
 function audStats(a) {
@@ -2101,3 +2104,39 @@ function protEnvioHTML(pr, u) {
     <div class="note info"><b>Assinatura pelo gov.br</b><span>${pr.enviadoEm ? `PDF enviado para ${esc(pr.enviadoPara)} em ${fmtStamp(pr.enviadoEm)}.` : u.email ? 'O PDF ainda não foi enviado por e-mail.' : 'O leitor não tem e-mail cadastrado: baixe o PDF e envie por WhatsApp.'} O leitor assina em assinador.iti.br e devolve o PDF assinado; depois é só anexar aqui.</span>
     <span class="toolbar"><button class="btn sm" data-act="protPdf">${ic('copy')} Baixar PDF</button>${u.email ? `<button class="btn sm" data-act="protEnviar">${pr.enviadoEm ? 'Enviar de novo' : 'Enviar por e-mail'}</button>` : ''}</span></div></div>`;
 }
+
+/* ---- versão 1.5: pedidos de retirada feitos pelo portal do leitor ---- */
+const solPend = () => (S.solicitacoes || []).filter(x => x.status === 'pendente');
+const SOL_CLS = { pendente: 'warn', confirmada: 'ok', recusada: 'bad', expirada: 'mute', cancelada: 'mute' };
+function portalInfo(u) {
+  const a = (S.acessos || []).find(x => x.userId === u.id);
+  return `<div class="note ${a && a.temSenha ? 'ok' : 'info'}"><b>Portal do leitor</b><span>${a && a.temSenha ? `Tem senha. Último acesso: ${a.ultimoLogin ? fmtStamp(a.ultimoLogin) : '—'}.` : 'Ainda não criou a senha.'} ${u.email ? 'Esqueceu ou não recebe o e-mail?' : 'Sem e-mail no cadastro:'} gere um código de acesso e passe para a pessoa.</span>
+    <span><button class="btn sm" data-act="leitorCodigo" data-id="${u.id}">Gerar código de acesso</button> <a class="btn sm ghost" href="leitor.html" target="_blank" rel="noopener">Abrir o portal</a></span></div>`;
+}
+VIEWS.pedidos = {
+  render() {
+    const pend = solPend().sort((a, b) => a.criadaEm.localeCompare(b.criadaEm)), hist = (S.solicitacoes || []).filter(x => x.status !== 'pendente').sort((a, b) => b.criadaEm.localeCompare(a.criadaEm)).slice(0, 30);
+    const linha = x => { const u = user(x.userId) || {}, ex = exem(x.exId) || {}, o = obra(x.obraId) || {};
+      return `<tr><td class="lead"><div class="t">${esc(o.titulo || '')}</div><div class="s">${esc(ex.codigo || '')} · ${esc(ex.local || '')}</div></td><td data-label="Leitor">${esc(u.nome || '')}</td>
+        <td data-label="Pedido" class="num">${fmtStamp(x.criadaEm)}${x.status === 'pendente' ? `<div class="s">separado até ${fmtD(x.expiraEm.slice(0, 10))}</div>` : ''}</td>
+        <td data-label="Situação">${pill(x.status, SOL_CLS[x.status])}${x.motivo ? `<div class="s">${esc(x.motivo)}</div>` : ''}</td>
+        <td class="actions">${x.status === 'pendente' ? `<button class="btn sm primary" data-act="solConfirmar" data-id="${x.id}">Confirmar</button><button class="btn sm" data-act="solRecusar" data-id="${x.id}">Recusar</button>` : x.loanId ? `<button class="btn sm ghost" data-act="go" data-v="emprestados" data-f="todos">Ver empréstimo</button>` : ''}</td></tr>`; };
+    const tab = (l, vazio) => l.length ? `<div class="table-wrap cards"><table><thead><tr><th>Livro</th><th>Leitor</th><th>Pedido</th><th>Situação</th><th><span class="sr">Ações</span></th></tr></thead><tbody>${l.map(linha).join('')}</tbody></table></div>` : `<div class="table-wrap"><div class="empty">${vazio}</div></div>`;
+    return `<div class="page-head"><div><h1>Pedidos do portal</h1><p class="sub">Livros pedidos pelos leitores no portal. Confirmar gera o empréstimo com o protocolo para assinar; recusar devolve o livro à estante e avisa o leitor por e-mail.</p></div></div>
+      ${tab(pend, 'Nenhum pedido aguardando.')}<h2 class="small muted" style="margin:18px 0 6px">Últimos respondidos</h2>${tab(hist, 'Nenhum pedido respondido ainda.')}`;
+  }
+};
+Object.assign(ACT, {
+  solConfirmar(t) {
+    const x = (S.solicitacoes || []).find(y => y.id === t.dataset.id), o = obra(x.obraId) || {}, u = user(x.userId) || {};
+    openModal(`<h2>Confirmar pedido</h2><p class="muted">${esc(o.titulo || '')} para ${esc(u.nome || '')}</p>
+      <div class="fields"><div class="field"><label for="sc-prev">Devolver até</label><input id="sc-prev" type="date" value="${addDays(TODAY(), S.config.prazo)}" min="${TODAY()}"></div>
+      <div class="field"><label for="sc-est">Estado na retirada</label><input id="sc-est" maxlength="300" placeholder="Opcional"></div></div>
+      <div class="modal-actions"><button class="btn" data-act="close">Voltar</button><button class="btn primary" data-act="solConfirmarOk" data-id="${x.id}">Confirmar e gerar protocolo</button></div>`);
+  },
+  solConfirmarOk(t) { run(async () => { const r = await api('solicitacao.confirmar', { id: t.dataset.id, dataPrev: $('#sc-prev').value, estado: $('#sc-est').value }, { msg: 'Gerando protocolo…' }); closeModal(); go('protocolo', { id: r.protocoloId }); envioAuto(r.protocoloId); }); },
+  solRecusar(t) { openModal(`<h2>Recusar pedido</h2><p class="small muted">O leitor recebe o motivo por e-mail e o livro volta a ficar disponível.</p><div class="field"><label for="sr-mot">Motivo</label><input id="sr-mot" maxlength="300" placeholder="Ex.: livro em restauração"></div>
+    <div class="modal-actions"><button class="btn" data-act="close">Voltar</button><button class="btn danger" data-act="solRecusarOk" data-id="${t.dataset.id}">Recusar</button></div>`); },
+  solRecusarOk(t) { run(async () => { await api('solicitacao.recusar', { id: t.dataset.id, motivo: $('#sr-mot').value }); closeModal(); render(); toast('Pedido recusado'); }); },
+  leitorCodigo(t) { run(async () => { const r = await api('leitor.gerarCodigo', { userId: t.dataset.id }); openModal(`<h2>Código de acesso</h2><p class="muted">Passe este código para a pessoa. No portal, ela escolhe "Primeiro acesso / esqueci a senha", informa o CPF, o código e cria a senha. Vale por ${r.validade}.</p><p style="font-size:30px;font-weight:700;letter-spacing:6px;text-align:center" class="mono">${r.codigo}</p><div class="modal-actions"><button class="btn primary" data-act="close">Fechar</button></div>`); }); },
+});
