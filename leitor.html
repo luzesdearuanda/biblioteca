@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Portal do leitor · Biblioteca Luzes de Aruanda</title>
+  <meta name="description" content="Consulte o acervo da Biblioteca Luzes de Aruanda, acompanhe seus empréstimos e peça a retirada de livros.">
+  <meta name="theme-color" content="#1C3557">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@600;700&family=IBM+Plex+Mono:wght@500;600&family=Source+Sans+3:wght@400;600;700&display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+  <script src="leitor.js" defer></script>
+</head>
+<body>
+  <div id="app"><div class="login"><div class="login-card"><div class="spinner" role="status" aria-label="Carregando"></div><p class="muted">Carregando…</p></div></div></div>
+  <div id="modal-root"></div>
+  <div class="toast-wrap" id="toasts" aria-live="polite"></div>
+  <div class="busy" id="busy" hidden><div class="busy-box"><div class="spinner" aria-hidden="true"></div><span id="busy-msg">Aguarde…</span></div></div>
+  <noscript><p style="padding:24px;font-family:sans-serif">Este portal precisa de JavaScript ativado no navegador.</p></noscript>
+</body>
+</html>
