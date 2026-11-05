@@ -27,6 +27,7 @@ const IC = {
   ref: sv('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'),
   arrow: sv('<path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>'),
   left: sv('<path d="M15 6l-6 6 6 6"/>', 2.2), right: sv('<path d="M9 6l6 6-6 6"/>', 2.2),
+  pagina: sv('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>'), rolar: sv('<rect x="6" y="2" width="12" height="8" rx="1.5"/><rect x="6" y="14" width="12" height="8" rx="1.5"/><path d="M3 9v6M2 13.5l1 1.5 1-1.5"/>'),
   menu: sv('<path d="M4 7h16M4 12h16M4 17h16"/>'), search: sv('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
 };
 const ART = {
@@ -173,8 +174,9 @@ function virtual() {
   if (!DG) return cabecalho('Biblioteca Virtual') + '<p class="muted">Carregando…</p>';
   if (LV) { const d = LV.d; return `<div class="lv-topo"><button class="btn sm ghost" data-act="lvFechar">← Voltar aos livros</button><div class="lv-tit"><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || '')}</span></div></div>
       ${LV.pdf ? `<div class="lv-barra"><button class="lp-btn light" data-act="lvPag" data-d="-1" aria-label="Página anterior">${IC.left}</button><span class="lv-ind"><input id="lv-ir" inputmode="numeric" value="${LV.pag}" aria-label="Página"> de ${LV.total}</span><button class="lp-btn light" data-act="lvPag" data-d="1" aria-label="Próxima página">${IC.right}</button>
-        <span class="lv-zoom"><button class="lp-btn light" data-act="lvZoom" data-d="-1" aria-label="Diminuir">−</button><button class="lp-btn light" data-act="lvZoom" data-d="1" aria-label="Aumentar">+</button></span></div>
-        <div class="lv-folha" id="lv-folha"><canvas id="lv-canvas"></canvas></div><p class="small muted lv-aviso">Leitura só nesta tela. ${esc(AUTZ_TXT[d.autorizacao] || '')} Cada página mostra o nome de quem está lendo.</p>`
+        <span class="lv-zoom"><button class="lp-btn light lv-modo" data-act="lvModo" title="Trocar o modo de leitura">${LV.modo === 'rolagem' ? IC.pagina + '<span>Página a página</span>' : IC.rolar + '<span>Rolagem contínua</span>'}</button><button class="lp-btn light" data-act="lvZoom" data-d="-1" aria-label="Diminuir">−</button><button class="lp-btn light" data-act="lvZoom" data-d="1" aria-label="Aumentar">+</button></span></div>
+        ${LV.modo === 'rolagem' ? `<div class="lv-folha lv-rolo" id="lv-rolo">${Array.from({ length: LV.total }, (_, i) => `<div class="lv-pg" data-p="${i + 1}" style="aspect-ratio:${LV.ratio};width:${Math.round(LV.zoom * 100)}%;max-width:${Math.round(900 * LV.zoom)}px"><canvas></canvas><span class="lv-num">${i + 1}</span></div>`).join('')}</div>`
+          : `<div class="lv-folha" id="lv-folha"><canvas id="lv-canvas"></canvas></div>`}<p class="small muted lv-aviso">Leitura só nesta tela. ${esc(AUTZ_TXT[d.autorizacao] || '')} Cada página mostra o nome de quem está lendo.</p>`
       : `<div class="lp-panel"><p id="lv-prog">Abrindo o livro…</p></div>`}`; }
   const gens = [...new Set(DG.digitais.map(d => d.genero).filter(Boolean))], gNome = s => ((D.generos || []).find(g => g.sigla === s) || { nome: s }).nome;
   return `${cabecalho('Biblioteca Virtual', 'Leia os livros digitais da biblioteca aqui mesmo, no celular ou no computador.')}
@@ -185,7 +187,8 @@ function virtual() {
 const carregarScript = src => new Promise((res, rej) => { if (document.querySelector(`script[src="${src}"]`)) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Não foi possível abrir o leitor de PDF. Confira a internet e tente de novo.')); document.head.appendChild(s); });
 const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 async function abrirLivro(d) {
-  LV = { d, pdf: null, pag: 1, total: 0, zoom: 1 }; render(); window.scrollTo(0, 0);
+  let modo = 'rolagem'; try { modo = localStorage.getItem('bibModo') || 'rolagem'; } catch (e) { }
+  LV = { d, pdf: null, pag: 1, total: 0, zoom: 1, modo, ratio: '3/4' }; render(); window.scrollTo(0, 0);
   await carregarScript(PDFJS + 'pdf.min.js'); pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js';
   const pedacos = [];
   for (let i = 0; i < d.partes; i++) {
@@ -195,26 +198,46 @@ async function abrirLivro(d) {
   const tam = pedacos.reduce((s, p) => s + p.length, 0), dados = new Uint8Array(tam); let o = 0; pedacos.forEach(p => { dados.set(p, o); o += p.length; });
   const pdf = await pdfjsLib.getDocument({ data: dados, isEvalSupported: false }).promise; if (!LV || LV.d.id !== d.id) return;
   let ult = 1; try { ult = +localStorage.getItem('bibPag_' + d.id) || 1; } catch (e) { }
-  Object.assign(LV, { pdf, total: pdf.numPages, pag: Math.min(Math.max(1, ult), pdf.numPages) }); render();
+  const v1 = (await pdf.getPage(1)).getViewport({ scale: 1 });
+  Object.assign(LV, { pdf, total: pdf.numPages, pag: Math.min(Math.max(1, ult), pdf.numPages), ratio: `${Math.round(v1.width)}/${Math.round(v1.height)}` }); render();
 }
-let desenhando = null;
+// marca d'água (versão 1.7.1): logo do terreiro bem clarinho no centro + nome, parte do CPF e data no rodapé
+const logoImg = new Image(); logoImg.src = LOGO;
+function marcaDagua(ctx, w, h) {
+  if (logoImg.complete && logoImg.naturalWidth) { const s = Math.min(w, h) * 0.62; ctx.save(); ctx.globalAlpha = 0.08; ctx.drawImage(logoImg, (w - s) / 2, (h - s) / 2, s, s); ctx.restore(); }
+  const fs = Math.max(10, Math.round(w / 52)); ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = '#1c2533'; ctx.font = `${fs}px sans-serif`; ctx.textAlign = 'left';
+  ctx.fillText(`${DG.marca} · ${hoje().split('-').reverse().join('/')}`, fs, h - fs); ctx.restore();
+}
+// desenha uma página do PDF num canvas com a largura pedida (em pixels de tela)
+async function desenharEm(cv, num, larg) {
+  if (cv._task) { try { cv._task.cancel(); } catch (e) { } }
+  const page = await LV.pdf.getPage(num), base = page.getViewport({ scale: 1 }), dpr = Math.min(window.devicePixelRatio || 1, 2), vp = page.getViewport({ scale: larg / base.width * dpr });
+  cv.width = vp.width; cv.height = vp.height;
+  const ctx = cv.getContext('2d'), task = cv._task = page.render({ canvasContext: ctx, viewport: vp });
+  try { await task.promise; } catch (e) { return false; } cv._task = null;
+  marcaDagua(ctx, vp.width, vp.height); return true;
+}
+const salvarPag = () => { try { localStorage.setItem('bibPag_' + LV.d.id, LV.pag); } catch (e) { } const ind = $('#lv-ir'); if (ind) ind.value = LV.pag; };
+// modo página a página
 async function desenharPagina() {
   if (!LV || !LV.pdf) return; const cv = $('#lv-canvas'), box = $('#lv-folha'); if (!cv || !box) return;
-  if (desenhando) { try { desenhando.cancel(); } catch (e) { } }
-  const page = await LV.pdf.getPage(LV.pag), base = page.getViewport({ scale: 1 }), larg = Math.max(280, Math.min(box.clientWidth - 2, 900));
-  const esc1 = larg / base.width * LV.zoom, dpr = Math.min(window.devicePixelRatio || 1, 2), vp = page.getViewport({ scale: esc1 * dpr });
-  cv.width = vp.width; cv.height = vp.height; cv.style.width = Math.round(vp.width / dpr) + 'px'; cv.style.height = Math.round(vp.height / dpr) + 'px';
-  const ctx = cv.getContext('2d'); desenhando = page.render({ canvasContext: ctx, viewport: vp });
-  try { await desenhando.promise; } catch (e) { return; } desenhando = null;
-  // marca d'água: nome e parte do CPF do leitor, em diagonal, bem leve
-  const fs = Math.max(14, Math.round(vp.width / 28)); ctx.save(); ctx.globalAlpha = 0.11; ctx.fillStyle = '#1c2533'; ctx.font = `600 ${fs}px sans-serif`; ctx.textAlign = 'center';
-  ctx.translate(vp.width / 2, vp.height / 2); ctx.rotate(-Math.atan2(vp.height, vp.width));
-  const diag = Math.hypot(vp.width, vp.height); for (let y = -diag / 2; y < diag / 2; y += fs * 6) ctx.fillText(DG.marca, 0, y);
-  ctx.restore(); ctx.save(); ctx.globalAlpha = 0.45; ctx.fillStyle = '#1c2533'; ctx.font = `${Math.round(fs * 0.55)}px sans-serif`; ctx.fillText(`${DG.marca} · ${hoje().split('-').reverse().join('/')}`, fs * 0.6, vp.height - fs * 0.6); ctx.restore();
-  try { localStorage.setItem('bibPag_' + LV.d.id, LV.pag); } catch (e) { }
-  const ind = $('#lv-ir'); if (ind) ind.value = LV.pag;
+  const larg = Math.max(280, Math.min(box.clientWidth - 2, 900)) * LV.zoom;
+  if (await desenharEm(cv, LV.pag, larg)) { cv.style.width = Math.round(larg) + 'px'; salvarPag(); }
 }
-const irPag = n => { if (!LV || !LV.pdf) return; const p = Math.min(Math.max(1, n), LV.total); if (p === LV.pag) return; LV.pag = p; desenharPagina(); const f = $('#lv-folha'); if (f) f.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
+// modo rolagem contínua: as páginas são desenhadas quando chegam perto da tela e liberadas quando ficam longe
+function montarRolo() {
+  const rolo = $('#lv-rolo'); if (!rolo || !LV || !LV.pdf) return;
+  if (LV.obs) LV.obs.disconnect(); if (LV.vis) LV.vis.disconnect(); LV.feitas = new Set();
+  LV.obs = new IntersectionObserver(ents => ents.forEach(en => { const p = +en.target.dataset.p; if (en.isIntersecting && !LV.feitas.has(p)) { LV.feitas.add(p); desenharEm(en.target.querySelector('canvas'), p, en.target.clientWidth).then(ok => { if (ok) en.target.classList.add('ok'); }); } }), { rootMargin: '900px 0px' });
+  LV.vis = new IntersectionObserver(ents => ents.forEach(en => { if (!en.isIntersecting) return; const p = +en.target.dataset.p; if (p === LV.pag) return; LV.pag = p; salvarPag();
+    LV.feitas.forEach(q => { if (Math.abs(q - p) > 8) { const c = rolo.querySelector(`[data-p="${q}"]`); if (c) { const cv = c.querySelector('canvas'); cv.width = cv.height = 0; c.classList.remove('ok'); } LV.feitas.delete(q); } }); }), { rootMargin: '-45% 0px -50% 0px' });
+  rolo.querySelectorAll('.lv-pg').forEach(el => { LV.obs.observe(el); LV.vis.observe(el); });
+  if (LV.pag > 1) { const el = rolo.querySelector(`[data-p="${LV.pag}"]`); if (el) el.scrollIntoView({ block: 'start' }); }
+}
+const mostrarLivro = () => { if (!LV || !LV.pdf) return; if (LV.modo === 'rolagem') montarRolo(); else desenharPagina(); };
+const irPag = n => { if (!LV || !LV.pdf) return; const p = Math.min(Math.max(1, n), LV.total);
+  if (LV.modo === 'rolagem') { const el = $(`#lv-rolo [data-p="${p}"]`); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+  if (p === LV.pag) return; LV.pag = p; desenharPagina(); const f = $('#lv-folha'); if (f) f.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
 const SOL = { pendente: ['Aguardando a biblioteca', 'warn'], confirmada: ['Confirmado', 'ok'], recusada: ['Não confirmado', 'bad'], expirada: ['Expirou', 'mute'], cancelada: ['Cancelado', 'mute'] };
 function perfil() {
   const l = D.leitor, at = D.emprestimos.filter(x => !x.dataDev), hist = D.emprestimos.filter(x => x.dataDev), h = hoje();
@@ -276,7 +299,7 @@ function render() {
   if (V !== 'app') { $('#app').innerHTML = LOGIN[V](); const f = $('#app input'); if (f) f.focus(); return; }
   const pg = { inicio, catalogo, virtual, cantigas, perfil, ajuda }[PG] || inicio;
   $('#app').innerHTML = moldura(pg());
-  if (PG === 'virtual' && LV && LV.pdf) desenharPagina();
+  if (PG === 'virtual' && LV && LV.pdf) mostrarLivro();
 }
 
 /* ---------- ações ---------- */
@@ -288,9 +311,10 @@ const ACT = {
   menuFechar: (t, e) => { if (e.target === t) { MENU = false; render(); } },
   sair: () => sair(),
   lvAbrir: t => { const d = DG.digitais.find(x => x.id === t.dataset.id); if (d) run(() => abrirLivro(d).catch(e => { LV = null; render(); throw e; })); },
-  lvFechar: () => { LV = null; render(); window.scrollTo(0, 0); },
+  lvFechar: () => { if (LV && LV.obs) { LV.obs.disconnect(); LV.vis.disconnect(); } LV = null; render(); window.scrollTo(0, 0); },
   lvPag: t => irPag(LV.pag + +t.dataset.d),
-  lvZoom: t => { if (!LV) return; LV.zoom = Math.min(2.5, Math.max(0.6, +(LV.zoom + 0.25 * +t.dataset.d).toFixed(2))); desenharPagina(); },
+  lvZoom: t => { if (!LV) return; LV.zoom = Math.min(2.5, Math.max(0.6, +(LV.zoom + 0.25 * +t.dataset.d).toFixed(2))); if (LV.modo === 'rolagem') render(); else desenharPagina(); },
+  lvModo: () => { if (!LV) return; LV.modo = LV.modo === 'rolagem' ? 'pagina' : 'rolagem'; try { localStorage.setItem('bibModo', LV.modo); } catch (e) { } render(); },
   atualizar: () => run(async () => { await carregar(); if (C) C = await api('leitor.cantigas', { token: token() }, 'Atualizando…'); if (DG) DG = await api('leitor.digitais', { token: token() }, 'Atualizando…'); render(); }),
   fechar: (t, e) => { if (e.target === t || t.tagName === 'BUTTON') modal(''); },
   rolar: t => { const d = $('#dest'); if (d) d.scrollBy({ left: +t.dataset.d * 290, behavior: 'smooth' }); },
@@ -335,6 +359,6 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => { const k = e.target.dataset.ch; if (k === 'dg') { FD.g = e.target.value; $('#dlista').innerHTML = listaDigitais(); } if (e.target.id === 'lv-ir') irPag(parseInt(e.target.value, 10) || 1); if (k === 'g') { F.g = e.target.value; $('#lista').innerHTML = listaObras(); } if (k === 'ctoq') { FC.toq = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'ccasa') { FC.casa = e.target.checked; $('#clista').innerHTML = listaCantigas(); } });
 if (token()) run(carregar).then(() => { if (!D) { V = 'entrar'; render(); } }); else render();
 // versão 1.7: leitor de PDF — setas do teclado mudam a página; sem menu do botão direito; redesenha ao girar o celular
-document.addEventListener('keydown', e => { if (!LV || !LV.pdf || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return; if (e.key === 'ArrowRight') irPag(LV.pag + 1); if (e.key === 'ArrowLeft') irPag(LV.pag - 1); });
+document.addEventListener('keydown', e => { if (!LV || !LV.pdf || LV.modo === 'rolagem' || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return; if (e.key === 'ArrowRight') irPag(LV.pag + 1); if (e.key === 'ArrowLeft') irPag(LV.pag - 1); });
 document.addEventListener('contextmenu', e => { if (e.target.closest('.lv-folha')) e.preventDefault(); });
-let lvTimer; window.addEventListener('resize', () => { clearTimeout(lvTimer); lvTimer = setTimeout(() => { if (LV && LV.pdf) desenharPagina(); }, 250); });
+let lvTimer, lvLarg = innerWidth; window.addEventListener('resize', () => { clearTimeout(lvTimer); lvTimer = setTimeout(() => { if (innerWidth === lvLarg) return; lvLarg = innerWidth; if (LV && LV.pdf) { if (LV.modo === 'rolagem') render(); else desenharPagina(); } }, 250); }); // só quando a largura muda (no celular a barra do navegador muda a altura ao rolar)
