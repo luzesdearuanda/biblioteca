@@ -509,6 +509,7 @@ VIEWS.inicio = {
     return `
     <div class="page-head"><div><h1>Olá, ${esc(firstName())}</h1><p class="sub">Dados atualizados às ${UI.lastUpdate}. ${k.atrasados ? `${plural(k.atrasados, 'empréstimo atrasado precisa', 'empréstimos atrasados precisam')} de atenção.` : 'Nenhum empréstimo atrasado.'}</p></div>
       <button class="btn sm" data-act="refresh">${ic('refresh')} Atualizar</button></div>
+    ${pedidosAviso()}
     ${(() => { const au = audAtual(); if (!au) return ''; const s = audStats(au); return `<div class="note warn"><b>Auditoria do acervo em andamento</b><span>${s.ok + s.falta} conferidos · ${s.pend} pendentes · ${s.falta} não encontrados. <button class="btn sm" data-act="go" data-v="auditoria">Continuar conferência</button></span></div>`; })()}
     <div class="quick">
       <button class="btn primary" data-act="go" data-v="emprestar">${ic('swap')} Novo empréstimo</button>
@@ -523,6 +524,7 @@ VIEWS.inicio = {
       ${kpi('Usuários ativos', k.usuarios, 'autorizados a retirar')}
       ${kpi(`Vencem em até ${cfg.antecedencia} dias`, k.breve, 'ver lista', k.breve ? 'warn' : '', 'data-act="go" data-v="emprestados" data-f="breve"')}
       ${kpi('Atrasados', k.atrasados, 'ver lista', k.atrasados ? 'bad' : '', 'data-act="go" data-v="emprestados" data-f="atrasado"')}
+      ${kpi('Pedidos do portal', solPend().length, solPend().length ? 'aguardando confirmação' : 'nenhum aguardando', solPend().length ? 'warn' : '', 'data-act="go" data-v="pedidos"')}
       ${k.pend ? kpi('Aguardando protocolo', k.pend, k.pendAntigos ? `${k.pendAntigos} há mais de 1 dia` : 'anexar assinatura', k.pendAntigos ? 'bad' : 'warn', 'data-act="go" data-v="emprestados" data-f="pendente"') : ''}
       ${k.ocPend ? kpi('Ocorrências pendentes', k.ocPend, 'avarias e extravios', 'bad', 'data-act="go" data-v="ocorrencias"') : ''}
     </div>
@@ -2140,3 +2142,8 @@ Object.assign(ACT, {
   solRecusarOk(t) { run(async () => { await api('solicitacao.recusar', { id: t.dataset.id, motivo: $('#sr-mot').value }); closeModal(); render(); toast('Pedido recusado'); }); },
   leitorCodigo(t) { run(async () => { const r = await api('leitor.gerarCodigo', { userId: t.dataset.id }); openModal(`<h2>Código de acesso</h2><p class="muted">Passe este código para a pessoa. No portal, ela escolhe "Primeiro acesso / esqueci a senha", informa o CPF, o código e cria a senha. Vale por ${r.validade}.</p><p style="font-size:30px;font-weight:700;letter-spacing:6px;text-align:center" class="mono">${r.codigo}</p><div class="modal-actions"><button class="btn primary" data-act="close">Fechar</button></div>`); }); },
 });
+function pedidosAviso() { // versão 1.5.1: destaque no Início quando há pedidos do portal aguardando
+  const p = solPend().sort((a, b) => a.expiraEm.localeCompare(b.expiraEm)); if (!p.length) return '';
+  const v = p[0].expiraEm.slice(0, 10), quando = v === TODAY() ? 'hoje' : v === addDays(TODAY(), 1) ? 'amanhã' : `em ${fmtD(v)}`;
+  return `<div class="note warn"><b>${plural(p.length, 'pedido de retirada aguardando', 'pedidos de retirada aguardando')} confirmação</b><span>O mais antigo vence ${quando}; depois disso o livro volta para a estante. <button class="btn sm primary" data-act="go" data-v="pedidos">Ver pedidos</button></span></div>`;
+}
