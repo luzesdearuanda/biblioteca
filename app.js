@@ -127,6 +127,7 @@ const showCPF = c => isAdmin() ? fmtCPF(c) : maskCPF(c);
 
 /* Ícones */
 const I = {
+  music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
   home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   book: '<path d="M4 19V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2 2 2 0 0 0 2 2h13"/><path d="M8 7h7"/>',
   users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/>',
@@ -212,7 +213,7 @@ async function api(action, payload = {}, opt = {}) {
     throw e;
   } finally { if (!opt.silent) busy(false); }
 }
-const TBL = { Obras: ['obras', 'id'], Exemplares: ['exemplares', 'id'], Usuarios: ['usuarios', 'id'], Emprestimos: ['emprestimos', 'id'], Protocolos: ['protocolos', 'id'], Ocorrencias: ['ocorrencias', 'id'], Generos: ['generos', 'sigla'], Operadores: ['operadores', 'email'], Auditorias: ['auditorias', 'id'], Solicitacoes: ['solicitacoes', 'id'], Acessos: ['acessos', 'userId'] };
+const TBL = { Obras: ['obras', 'id'], Exemplares: ['exemplares', 'id'], Usuarios: ['usuarios', 'id'], Emprestimos: ['emprestimos', 'id'], Protocolos: ['protocolos', 'id'], Ocorrencias: ['ocorrencias', 'id'], Generos: ['generos', 'sigla'], Operadores: ['operadores', 'email'], Auditorias: ['auditorias', 'id'], Solicitacoes: ['solicitacoes', 'id'], Acessos: ['acessos', 'userId'], Cantigas: ['cantigas', 'id'], CantSecoes: ['cantSecoes', 'id'], CantToques: ['cantToques', 'id'] };
 function applyChanges(ch) {
   if (!S) return;
   Object.keys(TBL).forEach(name => {
@@ -375,6 +376,7 @@ const NAV = [
   { id: 'catalogo', label: 'Catálogo', ic: 'book' },
   { id: 'usuarios', label: 'Usuários autorizados', ic: 'users' },
   { id: 'etiquetas', label: 'Etiquetas', ic: 'tag' },
+  { id: 'cantigas', label: 'Cantigas', ic: 'music' },
   { sec: 'Rotinas' },
   { id: 'alertas', label: 'Alertas por e-mail', ic: 'bell' },
   { id: 'auditoria', label: 'Auditoria do acervo', ic: 'clip', badge: () => audAtual() ? '•' : 0 },
@@ -1104,6 +1106,9 @@ VIEWS.configuracoes = {
         </div></fieldset>
         <div class="form-actions"><button class="btn primary">Salvar configurações</button></div>
       </form>
+      <section class="panel"><div class="panel-head"><h2>Transcrição de cantigas (Gemini)</h2>${pill(S.geminiOk ? 'ativada' : 'desativada', S.geminiOk ? 'ok' : 'mute')}</div>
+        <p class="small muted">Para transcrever áudios e vídeos das cantigas, crie uma chave gratuita em <b>aistudio.google.com</b> (menu "Get API key"), entrando com a conta da biblioteca, e cole aqui. A chave fica guardada só no servidor. No plano gratuito o Google pode usar o conteúdo enviado para melhorar os serviços dele.</p>
+        <div class="toolbar"><input id="c-gem" type="password" autocomplete="off" placeholder="${S.geminiOk ? 'Chave cadastrada (cole outra para trocar)' : 'Cole a chave (AIza…)'}" style="flex:1 1 260px"><button class="btn primary" data-act="gemSalvar">Salvar chave</button>${S.geminiOk ? '<button class="btn ghost" data-act="gemRemover">Remover</button>' : ''}</div></section>
       <section class="panel"><div class="panel-head"><h2>Gêneros e siglas</h2><button class="btn sm primary" data-act="genNew">${ic('plus')} Novo gênero</button></div>
         <p class="small muted">A sigla entra no código da etiqueta (LIV-0042-<b>ESP</b>). Depois de usada, não muda; o nome pode ser corrigido.</p>
         <div class="table-wrap cards"><table><thead><tr><th>Sigla</th><th>Gênero</th><th>Obras</th><th>Exemplares</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
@@ -1121,7 +1126,7 @@ VIEWS.operadores = {
       ${S.operadores.map((o, i) => { const self = o.email === S.session.email; return `<tr><td class="lead"><div class="t">${esc(o.nome)}${self ? ' <span class="chip">você</span>' : ''}</div><div class="s">${esc(o.email)}</div></td>
         <td data-label="Perfil">${o.perfil === 'Admin' ? '<span class="role">Admin</span>' : 'Operador'}</td><td data-label="Situação">${pill(o.status, o.status === 'Ativo' ? 'ok' : 'mute')}</td>
         <td data-label="Último acesso" class="num">${fmtStamp(o.ultimoAcesso)}</td>
-        <td class="actions"><button class="btn sm" data-act="assAbrir" data-email="${esc(o.email)}">${o.assinatura ? 'Assinatura ✓' : 'Assinatura'}</button>${self ? '' : `<button class="btn sm" data-act="opPerfil" data-i="${i}">${o.perfil === 'Admin' ? 'Tornar operador' : 'Tornar admin'}</button><button class="btn sm ${o.status === 'Ativo' ? 'danger' : ''}" data-act="opStatus" data-i="${i}">${o.status === 'Ativo' ? 'Inativar' : 'Reativar'}</button>`}</td></tr>`; }).join('')}
+        <td class="actions"><button class="btn sm" data-act="assAbrir" data-email="${esc(o.email)}">${o.assinatura ? 'Assinatura ✓' : 'Assinatura'}</button><button class="btn sm ${o.curimba ? 'primary' : ''}" data-act="opCurimba" data-email="${esc(o.email)}" title="Pode cadastrar cantigas">${o.curimba ? 'Curimba ✓' : 'Curimba'}</button>${self ? '' : `<button class="btn sm" data-act="opPerfil" data-i="${i}">${o.perfil === 'Admin' ? 'Tornar operador' : 'Tornar admin'}</button><button class="btn sm ${o.status === 'Ativo' ? 'danger' : ''}" data-act="opStatus" data-i="${i}">${o.status === 'Ativo' ? 'Inativar' : 'Reativar'}</button>`}</td></tr>`; }).join('')}
       </tbody></table></div>
       <form class="panel form" data-form="operador" novalidate><h2>Adicionar operador</h2><div class="fields">
         <div class="field"><label for="o-email">E-mail da conta Google <span class="req">*</span></label><input id="o-email" type="email" placeholder="nome@gmail.com"><span class="msg" id="m-oemail"></span></div>
@@ -2147,3 +2152,141 @@ function pedidosAviso() { // versão 1.5.1: destaque no Início quando há pedid
   const v = p[0].expiraEm.slice(0, 10), quando = v === TODAY() ? 'hoje' : v === addDays(TODAY(), 1) ? 'amanhã' : `em ${fmtD(v)}`;
   return `<div class="note warn"><b>${plural(p.length, 'pedido de retirada aguardando', 'pedidos de retirada aguardando')} confirmação</b><span>O mais antigo vence ${quando}; depois disso o livro volta para a estante. <button class="btn sm primary" data-act="go" data-v="pedidos">Ver pedidos</button></span></div>`;
 }
+
+/* ---- versão 1.6: cantigas (consulta para todos os operadores; cadastro pelo admin ou por quem tem a marca Curimba) ---- */
+const podeCant = () => isAdmin() || !!(S.operadores.find(o => o.email === S.session.email) || {}).curimba;
+const cSecs = () => (S.cantSecoes || []).filter(x => x.ativa !== false).sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, 'pt-BR'));
+const secNome = id => { const x = (S.cantSecoes || []).find(y => y.id === id); if (!x) return ''; const pai = x.paiId && (S.cantSecoes || []).find(y => y.id === x.paiId); return pai ? `${pai.nome} › ${x.nome}` : x.nome; };
+const toqNome = id => ((S.cantToques || []).find(t => t.id === id) || {}).nome || '';
+const ORIGEM = { tradicional: 'Tradicional', autor: 'Autoria conhecida', casa: 'Da casa' };
+const ytEmbed = id => `<div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${id}" title="Vídeo da cantiga" loading="lazy" allow="encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div><p class="small"><a href="https://www.youtube.com/watch?v=${id}" target="_blank" rel="noopener">Abrir no YouTube</a> (se o vídeo não tocar aqui)</p>`;
+const secOpts = (sel, vazio) => `<option value="">${vazio}</option>${cSecs().filter(x => !x.paiId).map(p => `<option value="${p.id}" ${sel === p.id ? 'selected' : ''}>${esc(p.nome)}</option>${cSecs().filter(f => f.paiId === p.id).map(f => `<option value="${f.id}" ${sel === f.id ? 'selected' : ''}>  › ${esc(f.nome)}</option>`).join('')}`).join('')}`;
+function cantFiltradas() {
+  const q = norm(P.q || ''), sec = P.sec || '', toq = P.toq || '';
+  return (S.cantigas || []).filter(c => (P.inat || c.ativa) && (!sec || c.secoes.some(id => id === sec || ((S.cantSecoes || []).find(x => x.id === id) || {}).paiId === sec)) && (!toq || c.toqueId === toq) && (!P.casa || c.origem === 'casa') && (!q || norm(c.titulo + ' ' + c.letra).includes(q)))
+    .sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'));
+}
+function cantLista() {
+  const l = cantFiltradas(); if (!l.length) return '<div class="table-wrap"><div class="empty">Nenhuma cantiga encontrada.</div></div>';
+  return `<div class="table-wrap cards"><table><thead><tr><th>Cantiga</th><th>Seções</th><th>Toque</th><th><span class="sr">Mídia</span></th></tr></thead><tbody>
+    ${l.map(c => `<tr class="${c.ativa ? '' : 'dim'}"><td class="lead"><button class="linklike" data-act="cantVer" data-id="${c.id}"><div class="t">${esc(c.titulo)}${c.origem === 'casa' ? ' ' + pill('Da casa', 'ok') : ''}</div><div class="s">${esc((c.letra || '').split('\n')[0])}</div></button></td>
+      <td data-label="Seções" class="small">${c.secoes.map(id => esc(secNome(id))).join(', ')}</td><td data-label="Toque">${esc(toqNome(c.toqueId) || '—')}</td>
+      <td class="small muted">${[c.youtube ? 'vídeo' : '', c.audioId ? 'áudio' : ''].filter(Boolean).join(' · ')}</td></tr>`).join('')}</tbody></table></div>`;
+}
+VIEWS.cantigas = {
+  render() {
+    const f = P.f || 'lista', pode = podeCant();
+    const tab = (id, label) => `<button type="button" data-act="cantTab" data-f="${id}" aria-pressed="${f === id}">${label}</button>`;
+    return `<div class="page-head"><div><h1>Cantigas</h1><p class="sub">Letras, vídeos e áudios das cantigas da casa, por seção e toque. No portal do leitor, só os associados veem.</p></div>
+        ${pode ? `<div class="toolbar"><button class="btn primary" data-act="cantNova">${ic('plus')} Nova cantiga</button></div>` : ''}</div>
+      ${pode ? `<div class="seg" role="group" style="margin-bottom:12px">${tab('lista', `Cantigas (${(S.cantigas || []).filter(c => c.ativa).length})`)}${tab('secoes', 'Seções e toques')}</div>` : ''}
+      ${f === 'secoes' && pode ? cantSecoesHTML() : `<div class="toolbar"><label class="search" style="flex:1 1 220px"><span class="sr">Buscar</span>${ic('search')}<input data-in="cantQ" value="${esc(P.q || '')}" placeholder="Título ou trecho da letra" autocomplete="off"></label>
+        <select data-ch="cantSec" aria-label="Seção">${secOpts(P.sec || '', 'Todas as seções')}</select>
+        <select data-ch="cantToq" aria-label="Toque"><option value="">Todos os toques</option>${(S.cantToques || []).filter(t => t.ativa !== false).map(t => `<option value="${t.id}" ${P.toq === t.id ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select>
+        <label class="check small"><input type="checkbox" data-ch="cantCasa" ${P.casa ? 'checked' : ''}> Só da casa</label>${pode ? `<label class="check small"><input type="checkbox" data-ch="cantInat" ${P.inat ? 'checked' : ''}> Desativadas</label>` : ''}</div>
+        <div id="cant-res">${cantLista()}</div>`}`;
+  }
+};
+function cantSecoesHTML() {
+  const all = (S.cantSecoes || []).slice().sort((a, b) => a.ordem - b.ordem), pais = all.filter(x => !x.paiId);
+  const linha = (x, sub) => `<div class="row-item" style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;${sub ? 'padding-left:22px' : ''}"><span class="${x.ativa === false ? 'muted' : ''}">${sub ? '› ' : ''}<b>${esc(x.nome)}</b> <span class="small muted">${(S.cantigas || []).filter(c => c.secoes.includes(x.id)).length} cantigas${x.ativa === false ? ' · desativada' : ''}</span></span>
+    <span class="toolbar">${sub ? '' : `<button class="btn sm ghost" data-act="secNova" data-pai="${x.id}">${ic('plus')} Subseção</button>`}<button class="btn sm ghost" data-act="secEditar" data-id="${x.id}">${ic('edit')}<span class="sr">Editar</span></button></span></div>`;
+  return `<div class="cols2" style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+    <section class="panel"><div class="panel-head"><h2>Seções</h2><button class="btn sm primary" data-act="secNova">${ic('plus')} Nova seção</button></div>${pais.map(p => linha(p) + all.filter(f => f.paiId === p.id).map(f => linha(f, true)).join('')).join('')}</section>
+    <section class="panel"><div class="panel-head"><h2>Toques</h2><button class="btn sm primary" data-act="toqNovo">${ic('plus')} Novo toque</button></div>${(S.cantToques || []).map(t => `<div class="row-item" style="display:flex;justify-content:space-between;padding:6px 0"><span class="${t.ativa === false ? 'muted' : ''}"><b>${esc(t.nome)}</b> <span class="small muted">${(S.cantigas || []).filter(c => c.toqueId === t.id).length} cantigas</span></span><button class="btn sm ghost" data-act="toqEditar" data-id="${t.id}">${ic('edit')}<span class="sr">Editar</span></button></div>`).join('')}</section></div>`;
+}
+function cantForm(c) {
+  c = c || { secoes: P.sec ? [P.sec] : [], origem: 'tradicional', ativa: true };
+  UI.cant = { id: c.id || '', blob: null, url: '' };
+  const pais = cSecs().filter(x => !x.paiId), chk = x => `<label class="check small"><input type="checkbox" name="cg-sec" value="${x.id}" ${c.secoes.includes(x.id) ? 'checked' : ''}> ${esc(x.nome)}</label>`;
+  return `<h2>${c.id ? 'Editar cantiga' : 'Nova cantiga'}</h2><div class="fields">
+    <div class="field full"><label for="cg-tit">Título</label><input id="cg-tit" maxlength="150" value="${esc(c.titulo || '')}" placeholder="Ex.: Ogum yê, meu pai"></div>
+    <div class="field full"><span class="lbl" style="font-weight:600">Seções</span><div class="sec-pick">${pais.map(p => `<div>${chk(p)}${cSecs().filter(f => f.paiId === p.id).map(f => `<div style="padding-left:18px">${chk(f)}</div>`).join('')}</div>`).join('')}</div></div>
+    <div class="field"><label for="cg-toq">Toque</label><select id="cg-toq"><option value="">—</option>${(S.cantToques || []).filter(t => t.ativa !== false || t.id === c.toqueId).map(t => `<option value="${t.id}" ${c.toqueId === t.id ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></div>
+    <div class="field"><label for="cg-ori">Origem</label><select id="cg-ori" data-ch="cantOri">${Object.keys(ORIGEM).map(k => `<option value="${k}" ${c.origem === k ? 'selected' : ''}>${ORIGEM[k]}</option>`).join('')}</select></div>
+    <div class="field" data-ori="autor casa"><label for="cg-aut" id="cg-aut-lb">Autor ou quem recebeu</label><input id="cg-aut" maxlength="150" value="${esc(c.autor || '')}"></div>
+    <div class="field" data-ori="casa"><label for="cg-dc">Criada ou recebida em</label><input id="cg-dc" type="date" value="${c.dataCasa || ''}" max="${TODAY()}"></div>
+    <div class="field full"><label for="cg-yt">Vídeo do YouTube (link)</label><div class="inline"><input id="cg-yt" value="${c.youtube ? 'https://youtu.be/' + c.youtube : ''}" placeholder="https://www.youtube.com/watch?v=…">${S.geminiOk ? '<button type="button" class="btn sm" data-act="cantTransYt">Transcrever do vídeo</button>' : ''}</div><span class="hint">Para vídeo próprio sem aparecer em buscas, suba no YouTube como "Não listado".</span></div>
+    <div class="field full"><span class="lbl" style="font-weight:600">Áudio</span><div id="cg-audio">${cantAudioHTML(c)}</div></div>
+    <div class="field full"><label for="cg-letra">Letra</label><textarea id="cg-letra" style="min-height:180px;font-size:15px">${esc(c.letra || '')}</textarea>${S.geminiOk ? '<span class="hint">A transcrição é um rascunho: confira cada verso antes de salvar.</span>' : '<span class="hint">Para transcrever automaticamente, o administrador ativa o Gemini em Configurações.</span>'}</div>
+    <div class="field full"><label for="cg-obs">Observações</label><input id="cg-obs" maxlength="500" value="${esc(c.obs || '')}"></div>
+    ${c.id ? `<div class="field full"><label class="check"><input type="checkbox" id="cg-ativa" ${c.ativa ? 'checked' : ''}> Cantiga ativa (aparece no portal)</label></div>` : ''}
+  </div><div class="modal-actions"><button class="btn" data-act="cantFechar">Cancelar</button><button class="btn primary" data-act="cantSalvar">Salvar</button></div>`;
+}
+function cantAudioHTML(c) {
+  const u = UI.cant || {};
+  if (u.rec) return `<div class="note warn" id="cg-rec"><b>Gravando… <span id="cg-tempo">0:00</span></b><span>Cante perto do microfone. Máximo de 10 minutos.</span><span><button type="button" class="btn sm primary" data-act="cantRecParar">Parar</button></span></div>`;
+  if (u.blob) return `<audio controls src="${u.url}" style="width:100%"></audio><div class="toolbar"><span class="small muted">Áudio novo (salva junto com a cantiga)</span><button type="button" class="btn sm ghost" data-act="cantRecDescartar">Descartar</button>${S.geminiOk ? '<button type="button" class="btn sm" data-act="cantTransAudio">Transcrever do áudio</button>' : ''}</div>`;
+  return `${c && c.audioId ? `<div class="toolbar"><button type="button" class="btn sm" data-act="cantOuvir" data-id="${c.id}">▶ Ouvir áudio salvo</button><button type="button" class="btn sm ghost" data-act="cantAudioRemover" data-id="${c.id}">Remover áudio</button>${S.geminiOk ? `<button type="button" class="btn sm" data-act="cantTransAudio">Transcrever do áudio</button>` : ''}</div><div id="cg-play"></div>` : ''}
+    <div class="toolbar"><button type="button" class="btn sm" data-act="cantRec">● Gravar${c && c.audioId ? ' outro' : ''}</button><label class="btn sm ghost">Enviar arquivo<input type="file" accept="audio/*" hidden data-ch="cantArq"></label></div>`;
+}
+const cantAtual = () => (S.cantigas || []).find(x => x.id === (UI.cant || {}).id);
+const cantRefreshAudio = () => { const el = $('#cg-audio'); if (el) el.innerHTML = cantAudioHTML(cantAtual()); };
+function cantOriSync() { const o = $('#cg-ori'); if (!o) return; document.querySelectorAll('[data-ori]').forEach(el => { el.hidden = !el.dataset.ori.split(' ').includes(o.value); }); const lb = $('#cg-aut-lb'); if (lb) lb.textContent = o.value === 'casa' ? 'Autor ou quem recebeu' : 'Autor'; }
+function cantPararRec() { const u = UI.cant || {}; if (u.rec) { try { u.rec.stop(); } catch (e) { } } }
+async function cantB64() { const u = UI.cant; return u && u.blob ? { mime: u.blob.type || 'audio/webm', dados: await blobB64(u.blob) } : null; }
+const blobB64 = b => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = () => rej(new Error('Não foi possível ler o áudio.')); fr.readAsDataURL(b); });
+Object.assign(ACT, {
+  cantTab(t) { go('cantigas', { f: t.dataset.f }); },
+  cantNova() { openModal(cantForm(), 'modal-wide'); cantOriSync(); },
+  cantEditar(t) { openModal(cantForm((S.cantigas || []).find(x => x.id === t.dataset.id)), 'modal-wide'); cantOriSync(); },
+  cantFechar() { cantPararRec(); closeModal(); },
+  cantVer(t) {
+    const c = (S.cantigas || []).find(x => x.id === t.dataset.id); UI.cant = { id: c.id };
+    openModal(`<h2>${esc(c.titulo)}</h2><p class="small muted">${c.secoes.map(id => esc(secNome(id))).join(' · ')}${c.toqueId ? ' · toque ' + esc(toqNome(c.toqueId)) : ''} · ${ORIGEM[c.origem] || ''}${c.autor ? ': ' + esc(c.autor) : ''}${c.dataCasa ? ' (' + fmtD(c.dataCasa) + ')' : ''}</p>
+      ${c.youtube ? ytEmbed(c.youtube) : ''}${c.audioId ? `<div class="toolbar"><button class="btn sm" data-act="cantOuvir" data-id="${c.id}">▶ Ouvir áudio</button></div><div id="cg-play"></div>` : ''}
+      <pre class="letra">${esc(c.letra || 'Letra não cadastrada.')}</pre>${c.obs ? `<p class="small muted">${esc(c.obs)}</p>` : ''}
+      <div class="modal-actions"><button class="btn" data-act="close">Fechar</button>${podeCant() ? `<button class="btn primary" data-act="cantEditar" data-id="${c.id}">${ic('edit')} Editar</button>` : ''}</div>`, 'modal-wide');
+  },
+  cantOuvir(t) { run(async () => { const r = await api('cant.audioObter', { id: t.dataset.id }, { msg: 'Carregando o áudio…' }); const el = $('#cg-play'); if (el) el.innerHTML = `<audio controls autoplay src="data:${r.mime};base64,${r.dados}" style="width:100%"></audio>`; }); },
+  cantAudioRemover(t) { run(async () => { await api('cant.audioRemover', { id: t.dataset.id }); cantRefreshAudio(); toast('Áudio removido'); }); },
+  async cantRec() {
+    if (!navigator.mediaDevices || !window.MediaRecorder) { toast('Este navegador não grava áudio. Use "Enviar arquivo".', 'bad'); return; }
+    let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) { toast('Não foi possível usar o microfone. Libere o acesso ao microfone para este site.', 'bad'); return; }
+    const tipo = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus'].find(x => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(x)) || '';
+    const rec = new MediaRecorder(stream, tipo ? { mimeType: tipo, audioBitsPerSecond: 64000 } : undefined), partes = [], ini = Date.now();
+    UI.cant.rec = rec; rec.ondataavailable = e => e.data.size && partes.push(e.data);
+    rec.onstop = () => { stream.getTracks().forEach(tr => tr.stop()); clearInterval(UI.cant.tm); UI.cant.rec = null; const blob = new Blob(partes, { type: (rec.mimeType || tipo || 'audio/webm').split(';')[0] }); if (blob.size) { UI.cant.blob = blob; UI.cant.url = URL.createObjectURL(blob); } cantRefreshAudio(); };
+    rec.start(1000); cantRefreshAudio();
+    UI.cant.tm = setInterval(() => { const s = Math.floor((Date.now() - ini) / 1000), el = $('#cg-tempo'); if (!$('#cg-rec') || s >= 600) { cantPararRec(); return; } if (el) el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }, 500);
+  },
+  cantRecParar() { cantPararRec(); },
+  cantRecDescartar() { UI.cant.blob = null; cantRefreshAudio(); },
+  cantTransYt() { const yt = $('#cg-yt').value.trim(); if (!yt) { toast('Cole o link do vídeo primeiro.', 'bad'); return; } run(async () => { const r = await api('cant.transcrever', { youtube: yt }, { msg: 'Transcrevendo o vídeo… (pode levar até 1 minuto)' }); cantPorLetra(r.texto); }); },
+  cantTransAudio() { run(async () => { const a = await cantB64(); const r = await api('cant.transcrever', a || { id: UI.cant.id }, { msg: 'Transcrevendo o áudio… (pode levar até 1 minuto)' }); cantPorLetra(r.texto); }); },
+  cantSalvar() {
+    const v = s => ($(s) ? $(s).value : ''), d = { id: UI.cant.id || undefined, titulo: v('#cg-tit'), secoes: [...document.querySelectorAll('[name=cg-sec]:checked')].map(x => x.value), toqueId: v('#cg-toq'), origem: v('#cg-ori'), autor: v('#cg-aut'), dataCasa: v('#cg-dc'), youtube: v('#cg-yt'), letra: v('#cg-letra'), obs: v('#cg-obs'), ativa: $('#cg-ativa') ? $('#cg-ativa').checked : true };
+    if (UI.cant.rec) { toast('Pare a gravação antes de salvar.', 'bad'); return; }
+    run(async () => { const r = await api('cant.salvar', d, { msg: 'Salvando…' }); const a = await cantB64(); if (a) await api('cant.audio', Object.assign({ id: r.id }, a), { msg: 'Enviando o áudio…' }); closeModal(); render(); toast('Cantiga salva'); });
+  },
+  secNova(t) { cantSecModal(null, t.dataset.pai || ''); },
+  secEditar(t) { const x = (S.cantSecoes || []).find(y => y.id === t.dataset.id); cantSecModal(x, x.paiId); },
+  secSalvar(t) { run(async () => { await api('cant.secao.salvar', { id: t.dataset.id || undefined, nome: $('#sc-nome').value, paiId: $('#sc-pai').value, ordem: $('#sc-ord').value, ativa: $('#sc-at') ? $('#sc-at').checked : true }); closeModal(); render(); toast('Seção salva'); }); },
+  toqNovo() { cantToqModal(null); },
+  toqEditar(t) { cantToqModal((S.cantToques || []).find(y => y.id === t.dataset.id)); },
+  toqSalvar(t) { run(async () => { await api('cant.toque.salvar', { id: t.dataset.id || undefined, nome: $('#tq-nome').value, ativa: $('#tq-at') ? $('#tq-at').checked : true }); closeModal(); render(); toast('Toque salvo'); }); },
+  opCurimba(t) { const o = S.operadores.find(x => x.email === t.dataset.email); run(async () => { await api('operador.curimba', { email: o.email, curimba: !o.curimba }); render(); }); },
+  gemSalvar() { const k = $('#c-gem').value.trim(); if (!k) { toast('Cole a chave.', 'bad'); return; } run(async () => { const r = await api('config.gemini', { chave: k }); S.geminiOk = r.geminiOk; render(); toast('Transcrição ativada'); }); },
+  gemRemover() { run(async () => { await api('config.gemini', { chave: '' }); S.geminiOk = false; render(); toast('Chave removida'); }); },
+});
+function cantPorLetra(txt) { const el = $('#cg-letra'); if (!el) return; if (el.value.trim() && !confirmaTroca()) { el.value = el.value.trim() + '\n\n--- transcrição ---\n' + txt; } else el.value = txt; toast('Transcrição pronta: confira a letra antes de salvar.'); }
+const confirmaTroca = () => false; // nunca apaga a letra já digitada: a transcrição vai para o fim
+function cantSecModal(x, pai) {
+  const pais = cSecs().filter(y => !y.paiId && (!x || y.id !== x.id));
+  openModal(`<h2>${x ? 'Editar seção' : pai ? 'Nova subseção' : 'Nova seção'}</h2><div class="fields"><div class="field full"><label for="sc-nome">Nome</label><input id="sc-nome" maxlength="80" value="${esc(x ? x.nome : '')}"></div>
+    <div class="field"><label for="sc-pai">Dentro de</label><select id="sc-pai"><option value="">— (seção principal)</option>${pais.map(p => `<option value="${p.id}" ${pai === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></div>
+    <div class="field"><label for="sc-ord">Ordem</label><input id="sc-ord" type="number" min="1" value="${x ? x.ordem : ''}" placeholder="automática"></div>
+    ${x ? `<div class="field full"><label class="check"><input type="checkbox" id="sc-at" ${x.ativa !== false ? 'checked' : ''}> Ativa</label></div>` : ''}</div>
+    <div class="modal-actions"><button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="secSalvar" data-id="${x ? x.id : ''}">Salvar</button></div>`);
+}
+function cantToqModal(x) {
+  openModal(`<h2>${x ? 'Editar toque' : 'Novo toque'}</h2><div class="field"><label for="tq-nome">Nome do toque</label><input id="tq-nome" maxlength="60" value="${esc(x ? x.nome : '')}"></div>${x ? `<label class="check"><input type="checkbox" id="tq-at" ${x.ativa !== false ? 'checked' : ''}> Ativo</label>` : ''}
+    <div class="modal-actions"><button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="toqSalvar" data-id="${x ? x.id : ''}">Salvar</button></div>`);
+}
+Object.assign(CHG, {
+  cantSec(el) { P.sec = el.value; $('#cant-res').innerHTML = cantLista(); }, cantToq(el) { P.toq = el.value; $('#cant-res').innerHTML = cantLista(); },
+  cantCasa(el) { P.casa = el.checked ? '1' : ''; $('#cant-res').innerHTML = cantLista(); }, cantInat(el) { P.inat = el.checked ? '1' : ''; $('#cant-res').innerHTML = cantLista(); },
+  cantOri() { cantOriSync(); },
+  cantArq(el) { const f = el.files[0]; if (!f) return; if (f.size > 15 * 1024 * 1024) { toast('Áudio maior que 15 MB.', 'bad'); return; } UI.cant.blob = f; UI.cant.url = URL.createObjectURL(f); cantRefreshAudio(); },
+});
+INP.cantQ = el => { P.q = el.value; $('#cant-res').innerHTML = cantLista(); };
