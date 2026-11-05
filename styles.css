@@ -428,3 +428,12 @@ td .pill{white-space:normal;text-align:left}
 .prot-envio{display:grid;gap:8px;margin-bottom:10px}
 .pdf-render{position:absolute;left:0;top:0;width:760px;z-index:-1;background:#fff}
 .pdf-render .doc{box-shadow:none;max-width:none}
+
+/* versão 1.6: cantigas */
+.yt{position:relative;width:100%;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#000;margin:8px 0}
+.yt iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.letra{white-space:pre-wrap;font-family:var(--f-body);font-size:1.15rem;line-height:1.7;background:var(--surface-2,#f4f6f3);border-radius:10px;padding:14px 16px;margin:10px 0;overflow-wrap:anywhere}
+.sec-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px 14px;max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px}
+.cant-lista{display:grid;gap:8px}
+.cant-card{display:grid;gap:3px;text-align:left;width:100%;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px;cursor:pointer;font:inherit;color:inherit}
+.cant-card:hover{border-color:var(--sea)}
