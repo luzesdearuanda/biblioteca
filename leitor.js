@@ -90,7 +90,14 @@ const LOGIN = {
       ${campo('c-cpf', 'CPF', `inputmode="numeric" placeholder="000.000.000-00" value="${esc(fmtCPF(CPF))}" data-cpf`)}
       <button class="btn primary">Enviar código por e-mail</button></form>
     <button class="btn ghost" data-act="ir" data-v="senha">Já tenho um código</button><button class="btn ghost" data-act="ir" data-v="entrar">Voltar</button>
-    <p class="small muted">Sem e-mail no cadastro? Peça o código a um operador da biblioteca.</p>`),
+    <p class="small muted">Sem e-mail no cadastro? Associados da casa podem informar o e-mail na próxima tela; os demais leitores pedem o código a um operador da biblioteca.</p>`),
+  email: () => card(`<form class="form" data-form="email" style="display:grid;gap:12px;text-align:left">
+      <p class="small">Seu cadastro ainda não tem e-mail. Para confirmar que é você, informe a sua data de nascimento (a mesma do cadastro na Secretaria) e o e-mail que quer usar. Ele fica salvo no seu cadastro da Secretaria e da biblioteca, e o código chega nele.</p>
+      ${campo('e-nasc', 'Data de nascimento', `type="date" max="${hoje()}"`)}
+      ${campo('e-email', 'Seu e-mail', 'type="email" autocomplete="email" maxlength="150"')}
+      ${campo('e-email2', 'Repita o e-mail', 'type="email" autocomplete="email" maxlength="150"')}
+      <button class="btn primary">Salvar e-mail e enviar código</button></form>
+    <button class="btn ghost" data-act="ir" data-v="codigo">Voltar</button>`),
   senha: () => card(`<form class="form" data-form="senha" style="display:grid;gap:12px">
       ${campo('s-cpf', 'CPF', `inputmode="numeric" placeholder="000.000.000-00" value="${esc(fmtCPF(CPF))}" data-cpf`)}
       ${campo('s-cod', 'Código de 6 dígitos', 'inputmode="numeric" autocomplete="one-time-code" maxlength="6"')}
@@ -165,6 +172,7 @@ function perfil() {
     <section class="lp-panel"><h2>Comigo agora</h2>${at.length ? at.map(emp).join('') : '<p class="muted">Você não está com nenhum livro.</p>'}<p class="small muted">Até ${D.config.maxExemplares} livros ao mesmo tempo, por ${D.config.prazo} dias.${D.config.renovacoes ? ' Para renovar, fale com a biblioteca.' : ''}</p></section>
     <section class="lp-panel"><h2>Meus pedidos</h2>${D.solicitacoes.length ? D.solicitacoes.map(s => linha(`<span><b>${esc(s.titulo)}</b><br><span class="small muted">pedido em ${fmtD(s.criadaEm)}${s.status === 'pendente' ? ` · separado até ${fmtD(s.expiraEm)}` : ''}${s.motivo ? ' · ' + esc(s.motivo) : ''}</span></span>`, `<span class="pill ${SOL[s.status][1]}">${SOL[s.status][0]}</span>${s.status === 'pendente' ? `<br><button class="btn sm ghost" data-act="cancelar" data-id="${s.id}">Cancelar pedido</button>` : ''}`)).join('') : '<p class="muted">Nenhum pedido ainda.</p>'}</section>
     ${hist.length ? `<section class="lp-panel"><h2>Histórico</h2>${hist.slice(0, 15).map(emp).join('')}</section>` : ''}
+    <section class="lp-panel"><h2>Aparência</h2><div class="seg" role="group" aria-label="Tema">${Object.keys(TEMA.nomes).map(k => `<button type="button" data-act="tema" data-t="${k}" aria-pressed="${TEMA.get() === k}">${TEMA.nomes[k]}</button>`).join('')}</div><p class="small muted">Automático segue o tema do aparelho. A escolha fica guardada neste aparelho.</p></section>
     <section class="lp-panel"><h2>Trocar a senha</h2><form data-form="trocar" style="display:grid;gap:10px;max-width:420px">${campo('t-atual', 'Senha atual', 'type="password" autocomplete="current-password"')}${campo('t-nova', 'Nova senha', 'type="password" autocomplete="new-password" minlength="6" maxlength="64"')}${campo('t-nova2', 'Repita a nova senha', 'type="password" autocomplete="new-password" maxlength="64"')}<button class="lp-btn" style="justify-self:start">Salvar nova senha</button></form>
       <p class="small muted">Trocar a senha encerra o acesso nos outros aparelhos.</p></section>
     <button class="lp-btn light" data-act="sair">${IC.out} Sair</button>`;
@@ -221,6 +229,7 @@ const ACT = {
   ir: t => { V = t.dataset.v; render(); },
   pg: t => irPara(t.dataset.pg),
   menu: () => { MENU = true; render(); },
+  tema: t => { TEMA.set(t.dataset.t); render(); },
   menuFechar: (t, e) => { if (e.target === t) { MENU = false; render(); } },
   sair: () => sair(),
   atualizar: () => run(async () => { await carregar(); if (C) C = await api('leitor.cantigas', { token: token() }, 'Atualizando…'); render(); }),
@@ -241,7 +250,11 @@ const ACT = {
 const FORMS = {
   entrar: () => run(async () => { CPF = $('#l-cpf').value; try { const r = await api('leitor.entrar', { cpf: CPF, senha: $('#l-senha').value }, 'Entrando…'); ls.set('bibLeitor', r.token); await carregar(); }
     catch (e) { if (e.code === 'NOSENHA') { V = 'codigo'; render(); } throw e; } }),
-  codigo: () => run(async () => { CPF = $('#c-cpf').value; const r = await api('leitor.codigo', { cpf: CPF }, 'Enviando código…'); V = 'senha'; render(); toast(`Código enviado para ${r.email}. Confira também a caixa de spam.`); }),
+  email: () => run(async () => {
+    const e = $('#e-email').value.trim(); if (!$('#e-nasc').value) { toast('Informe a data de nascimento.', 'bad'); return; } if (e.toLowerCase() !== $('#e-email2').value.trim().toLowerCase()) { toast('Os e-mails não são iguais.', 'bad'); return; }
+    const r = await api('leitor.email', { cpf: CPF, nascimento: $('#e-nasc').value, email: e }, 'Salvando o e-mail…'); V = 'senha'; render(); toast(`E-mail salvo. Código enviado para ${r.email}. Confira também a caixa de spam.`);
+  }),
+  codigo: () => run(async () => { CPF = $('#c-cpf').value; const r = await api('leitor.codigo', { cpf: CPF }, 'Enviando código…'); if (r.semEmail) { V = 'email'; render(); return; } V = 'senha'; render(); toast(`Código enviado para ${r.email}. Confira também a caixa de spam.`); }),
   senha: () => run(async () => {
     CPF = $('#s-cpf').value; const s1 = $('#s-senha').value;
     if (s1 !== $('#s-senha2').value) { toast('As senhas não são iguais.', 'bad'); return; }
