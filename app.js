@@ -2235,7 +2235,8 @@ function cantAudioHTML(c) {
   if (u.rec) return `<div class="note warn" id="cg-rec"><b>Gravando… <span id="cg-tempo">0:00</span></b><span>Cante perto do microfone. Máximo de 10 minutos.</span><span><button type="button" class="btn sm primary" data-act="cantRecParar">Parar</button></span></div>`;
   if (u.blob) return `<audio controls src="${u.url}" style="width:100%"></audio><div class="toolbar"><span class="small muted">Áudio novo (salva junto com a cantiga)</span><button type="button" class="btn sm ghost" data-act="cantRecDescartar">Descartar</button>${S.geminiOk ? '<button type="button" class="btn sm" data-act="cantTransAudio">Transcrever do áudio</button>' : ''}</div>`;
   return `${c && c.audioId ? `<div class="toolbar"><button type="button" class="btn sm" data-act="cantOuvir" data-id="${c.id}">▶ Ouvir áudio salvo</button><button type="button" class="btn sm ghost" data-act="cantAudioRemover" data-id="${c.id}">Remover áudio</button>${S.geminiOk ? `<button type="button" class="btn sm" data-act="cantTransAudio">Transcrever do áudio</button>` : ''}</div><div id="cg-play"></div>` : ''}
-    <div class="toolbar"><button type="button" class="btn sm" data-act="cantRec">● Gravar${c && c.audioId ? ' outro' : ''}</button><label class="btn sm ghost">Enviar arquivo<input type="file" accept="audio/*" hidden data-ch="cantArq"></label></div>`;
+    <div class="toolbar"><button type="button" class="btn sm" data-act="cantRec">● Gravar${c && c.audioId ? ' outro' : ''}</button><label class="btn sm ghost">Enviar arquivo<input type="file" accept="audio/*" hidden data-ch="cantArq"></label><label class="btn sm ghost" title="Escolha um vídeo seu (gravação da gira ou vídeo do canal da casa baixado pelo YouTube Studio)">Extrair áudio de um vídeo<input type="file" accept="video/*,.mp4,.mov,.webm,.3gp" hidden data-ch="cantVideo"></label></div>
+    <span class="hint">Do YouTube não dá para tirar o áudio (as regras do YouTube não permitem). Para os vídeos da casa, baixe o vídeo pelo YouTube Studio e use "Extrair áudio de um vídeo".</span>`;
 }
 const cantAtual = () => (S.cantigas || []).find(x => x.id === (UI.cant || {}).id);
 const cantRefreshAudio = () => { const el = $('#cg-audio'); if (el) el.innerHTML = cantAudioHTML(cantAtual()); };
@@ -2278,7 +2279,7 @@ Object.assign(ACT, {
   },
   secNova(t) { cantSecModal(null, t.dataset.pai || ''); },
   secEditar(t) { const x = (S.cantSecoes || []).find(y => y.id === t.dataset.id); cantSecModal(x, x.paiId); },
-  secSalvar(t) { run(async () => { await api('cant.secao.salvar', { id: t.dataset.id || undefined, nome: $('#sc-nome').value, paiId: $('#sc-pai').value, ordem: $('#sc-ord').value, ativa: $('#sc-at') ? $('#sc-at').checked : true }); closeModal(); render(); toast('Seção salva'); }); },
+  secSalvar(t) { run(async () => { await api('cant.secao.salvar', { id: t.dataset.id || undefined, nome: $('#sc-nome').value, paiId: $('#sc-pai').value, ordem: $('#sc-ord').value, icone: ($('[name=sc-ic]:checked') || {}).value || '', ativa: $('#sc-at') ? $('#sc-at').checked : true }); closeModal(); render(); toast('Seção salva'); }); },
   toqNovo() { cantToqModal(null); },
   toqEditar(t) { cantToqModal((S.cantToques || []).find(y => y.id === t.dataset.id)); },
   toqSalvar(t) { run(async () => { await api('cant.toque.salvar', { id: t.dataset.id || undefined, nome: $('#tq-nome').value, ativa: $('#tq-at') ? $('#tq-at').checked : true }); closeModal(); render(); toast('Toque salvo'); }); },
@@ -2297,6 +2298,7 @@ function cantSecModal(x, pai) {
   openModal(`<h2>${x ? 'Editar seção' : pai ? 'Nova subseção' : 'Nova seção'}</h2><div class="fields"><div class="field full"><label for="sc-nome">Nome</label><input id="sc-nome" maxlength="80" value="${esc(x ? x.nome : '')}"></div>
     <div class="field"><label for="sc-pai">Dentro de</label><select id="sc-pai"><option value="">— (seção principal)</option>${pais.map(p => `<option value="${p.id}" ${pai === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></div>
     <div class="field"><label for="sc-ord">Ordem</label><input id="sc-ord" type="number" min="1" value="${x ? x.ordem : ''}" placeholder="automática"></div>
+    <div class="field full"><span class="lbl" style="font-weight:600">Ícone no portal</span><div class="ic-pick">${Object.keys(ICONES_SEC).map(k => `<label title="${k}"><input type="radio" name="sc-ic" value="${k}" ${(x && x.icone ? x.icone : iconeSecPadrao(x ? x.nome : '')) === k ? 'checked' : ''}><span>${svgSec(k)}</span></label>`).join('')}</div></div>
     ${x ? `<div class="field full"><label class="check"><input type="checkbox" id="sc-at" ${x.ativa !== false ? 'checked' : ''}> Ativa</label></div>` : ''}</div>
     <div class="modal-actions"><button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="secSalvar" data-id="${x ? x.id : ''}">Salvar</button></div>`);
 }
@@ -2380,3 +2382,53 @@ Object.assign(CHG, {
   digPdf(el) { const f = el.files[0]; if (!f) return; if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') { toast('Escolha um arquivo PDF.', 'bad'); return; } if (f.size > 20 * 1024 * 1024) { toast(`PDF com ${MB(f.size)}: o limite é 20 MB. Comprima o arquivo (ex.: ilovepdf.com → Comprimir PDF) e tente de novo.`, 'bad'); el.value = ''; return; } UI.dig.pdf = f; $('#dg-pdf-nome').textContent = `${f.name} (${MB(f.size)})`; },
 });
 INP.digQ = el => { P.q = el.value; $('#dig-res').innerHTML = digLista(); };
+
+/* ---- versão 1.8: ícones das seções (painel do portal) e extração do áudio de um vídeo (no navegador, em MP3) ---- */
+const ICONES_SEC = {
+  estrela: '<path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6L3.3 9.2l6.1-.6z"/>',
+  pessoas: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.6-3.4 3-5.5 6-5.5s5.4 2.1 6 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.6c2.6.1 4.6 2 5 5.4"/>',
+  lotus: '<path d="M12 19c-4-1.5-6-5-6-9 3 1 5 3.5 6 9zM12 19c4-1.5 6-5 6-9-3 1-5 3.5-6 9zM12 19c-1.5-3-1.5-8 0-13 1.5 5 1.5 10 0 13z"/><path d="M3 19h18"/>',
+  chapeu: '<path d="M7 15c0-4 1.5-8 5-8s5 4 5 8"/><path d="M2.5 15.5c3 2.2 16 2.2 19 0-3.5-1-15.5-1-19 0z"/>',
+  livro: '<path d="M3 5.5C5.5 4 8.5 4 12 6c3.5-2 6.5-2 9-.5V19c-2.5-1.5-5.5-1.5-9 .5-3.5-2-6.5-2-9-.5z"/><path d="M12 6v13.5"/>',
+  nota: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+  tambor: '<ellipse cx="12" cy="6" rx="6" ry="2.5"/><path d="M6 6l1.5 13h9L18 6"/><path d="M8 9.5l4 3 4-3"/>',
+  vela: '<path d="M12 3c1.5 2 1.5 3.5 0 5-1.5-1.5-1.5-3 0-5z"/><rect x="9" y="9" width="6" height="11" rx="1"/>',
+  folha: '<path d="M5 19C5 10 10 5 20 4c-1 10-6 15-15 15z"/><path d="M5 19l8-8"/>',
+  onda: '<path d="M2 11c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5-1"/><path d="M2 17c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5-1"/>',
+  raio: '<path d="M13 2L5 13h6l-1 9 8-11h-6z"/>',
+  coracao: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+  espada: '<path d="M14.5 3H20v5.5L10 18.5 5.5 14z"/><path d="M7 16l-3.5 3.5M5 13l6 6"/>',
+  flecha: '<path d="M4 20L19 5"/><path d="M13 4h7v7"/><path d="M4 20l1.5-5 3.5 3.5z"/>',
+};
+const svgSec = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONES_SEC[k] || ICONES_SEC.nota}</svg>`;
+function iconeSecPadrao(nome) {
+  const n = norm(nome), r = [[/defuma/, 'vela'], [/bater|cabeca/, 'tambor'], [/oxum|ibejada|cosme/, 'coracao'], [/iemanja|marinheiro/, 'onda'], [/iansa|xango/, 'raio'], [/ogum/, 'espada'], [/oxossi|caboclo|jurema/, 'flecha'], [/boiadeiro|baiano/, 'chapeu'], [/preto velho|pretos velhos|linha/, 'pessoas'], [/oxala|abertura|encerramento|gira/, 'estrela'], [/orixa/, 'lotus'], [/doutrina|hino/, 'livro'], [/mata|folha|erva/, 'folha']];
+  return (r.find(([re]) => re.test(n)) || [0, 'nota'])[1];
+}
+const LAME = ['https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js', 'https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js'];
+const scriptUnico = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+async function carregaLame() { if (window.lamejs) return; for (const u of LAME) { try { await scriptUnico(u); if (window.lamejs) return; } catch (e) { } } throw new Error('Não foi possível carregar o conversor de áudio. Confira a internet e tente de novo.'); }
+async function extrairAudio(file, prog) {
+  if (file.size > 400 * 1024 * 1024) throw new Error('Vídeo maior que 400 MB. Corte só o trecho da cantiga antes (no próprio celular, em Editar → Cortar).');
+  prog('Lendo o vídeo…'); const buf = await file.arrayBuffer();
+  const Ctx = window.AudioContext || window.webkitAudioContext, ac = new Ctx(); let audio;
+  try { audio = await ac.decodeAudioData(buf); } catch (e) { throw new Error('Não foi possível ler o áudio deste vídeo. Vídeos MP4 do celular costumam funcionar; tente outro arquivo.'); } finally { try { ac.close(); } catch (e) { } }
+  if (audio.duration > 15 * 60) throw new Error('O vídeo tem mais de 15 minutos. Corte só o trecho da cantiga antes.');
+  prog('Separando o áudio…'); const sr = 44100, off = new OfflineAudioContext(1, Math.ceil(audio.duration * sr), sr), src = off.createBufferSource();
+  src.buffer = audio; src.connect(off.destination); src.start(); const mono = (await off.startRendering()).getChannelData(0);
+  await carregaLame(); const enc = new lamejs.Mp3Encoder(1, sr, 96), BL = 1152, pcm = new Int16Array(BL), partes = [];
+  for (let i = 0; i < mono.length; i += BL) {
+    const n = Math.min(BL, mono.length - i); for (let j = 0; j < n; j++) { const s = Math.max(-1, Math.min(1, mono[i + j])); pcm[j] = s < 0 ? s * 0x8000 : s * 0x7fff; }
+    const b = enc.encodeBuffer(n === BL ? pcm : pcm.subarray(0, n)); if (b.length) partes.push(new Uint8Array(b));
+    if ((i / BL) % 300 === 0) { prog(`Convertendo para MP3… ${Math.round(i / mono.length * 100)}%`); await new Promise(r => setTimeout(r)); }
+  }
+  const fim = enc.flush(); if (fim.length) partes.push(new Uint8Array(fim));
+  return new Blob(partes, { type: 'audio/mpeg' });
+}
+Object.assign(CHG, {
+  cantVideo(el) {
+    const f = el.files[0]; if (!f) return; el.value = ''; const box = $('#cg-audio');
+    const prog = m => { if (box) box.innerHTML = `<div class="note"><b>${esc(m)}</b><span>Pode levar alguns segundos. Não feche esta janela.</span></div>`; };
+    run(async () => { try { const b = await extrairAudio(f, prog); if (b.size > 15 * 1024 * 1024) throw new Error('O áudio ficou maior que 15 MB. Corte o vídeo em um trecho menor.'); UI.cant.blob = b; UI.cant.url = URL.createObjectURL(b); cantRefreshAudio(); toast(`Áudio extraído (${MB(b.size)}). Ele será salvo junto com a cantiga.`); } catch (e) { cantRefreshAudio(); throw e; } });
+  },
+});
