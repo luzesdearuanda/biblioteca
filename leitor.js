@@ -11,7 +11,7 @@ const fmtCPF = v => { const d = String(v || '').replace(/\D/g, '').slice(0, 11);
 const hoje = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const ls = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) { } } };
 let V = 'entrar', PG = 'inicio', D = null, C = null, CPF = '', MENU = false;
-const F = { q: '', g: '' }, FC = { q: '', sec: '', toq: '', casa: false, id: '', ori: '', mid: '', modo: '' };
+const F = { q: '', g: '', disp: '', ord: '', id: '' }, FC = { q: '', sec: '', toq: '', casa: false, id: '', ori: '', mid: '', modo: '' };
 const LOGO = 'logo.png';
 
 /* ---------- ícones e ilustrações (SVG) ---------- */
@@ -58,7 +58,12 @@ const ART = {
 /* ---------- comunicação ---------- */
 function busy(on, msg) { $('#busy').hidden = !on; if (msg) $('#busy-msg').textContent = msg; }
 function toast(msg, kind = 'ok') { const d = document.createElement('div'); d.className = 'toast ' + kind; d.textContent = msg; $('#toasts').appendChild(d); setTimeout(() => d.remove(), 5000); }
-function modal(html) { $('#modal-root').innerHTML = html ? `<div class="overlay" data-act="fechar"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>` : ''; }
+let modalFoco = null;
+function modal(html) {
+  $('#modal-root').innerHTML = html ? `<div class="overlay" data-act="fechar"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-tit">${html.replace('<h2>', '<h2 id="modal-tit">')}</div></div>` : '';
+  if (html) { modalFoco = document.activeElement; setTimeout(() => { const m = $('#modal-root .modal'), f = m && (m.querySelector('input') || m.querySelector('.btn.primary') || m.querySelector('button')); if (f && !m.contains(document.activeElement)) f.focus({ preventScroll: true }); }, 30); }
+  else if (modalFoco && document.contains(modalFoco)) { modalFoco.focus(); modalFoco = null; }
+}
 async function api(action, payload = {}, msg) {
   busy(true, msg || 'Aguarde…');
   try {
@@ -69,10 +74,10 @@ async function api(action, payload = {}, msg) {
   } finally { busy(false); }
 }
 async function run(fn) { try { await fn(); } catch (e) { if (e.code === 'AUTH' && ls.get('bibLeitor')) { sair(e.message); return; } toast(e.message, 'bad'); } }
-function sair(msg) { ls.set('bibLeitor', null); D = null; C = null; DG = null; LV = null; V = 'entrar'; PG = 'inicio'; render(); if (msg) toast(msg, 'bad'); }
+function sair(msg) { ttsFechar(); enviarPos(true); ls.set('bibLeitor', null); D = null; C = null; DG = null; LV = null; V = 'entrar'; PG = 'inicio'; render(); if (msg) toast(msg, 'bad'); }
 const token = () => ls.get('bibLeitor');
 async function carregar() { D = await api('leitor.dados', { token: token() }, 'Carregando…'); V = 'app'; render(); }
-const irPara = pg => { PG = pg; MENU = false; FC.id = ''; if (pg !== 'virtual') LV = null; if (pg === 'virtual' && !DG) { run(async () => { DG = await api('leitor.digitais', { token: token() }, 'Carregando os livros digitais…'); render(); }); return; } if (pg === 'cantigas' && !C) { run(async () => { C = await api('leitor.cantigas', { token: token() }, 'Carregando as cantigas…'); render(); }); return; } render(); window.scrollTo(0, 0); };
+const irPara = pg => { PG = pg; MENU = false; FC.id = ''; F.id = ''; FD.id = ''; if (pg !== 'virtual') { ttsFechar(); enviarPos(true); LV = null; } if (pg === 'virtual' && !DG) { run(async () => { DG = await api('leitor.digitais', { token: token() }, 'Carregando os livros digitais…'); render(); focoTela(); }); return; } if (pg === 'cantigas' && !C) { run(async () => { C = await api('leitor.cantigas', { token: token() }, 'Carregando as cantigas…'); render(); focoTela(); }); return; } render(); focoTela(); };
 
 /* ---------- login ---------- */
 const card = body => `<div class="login"><div class="login-card">
@@ -116,17 +121,17 @@ const navBtn = ([id, label, icon, soon]) => `<button class="lp-nav" data-act="pg
 function moldura(conteudo) {
   const contas = [['perfil', 'Meu Perfil', IC.user], ['ajuda', 'Ajuda', IC.help]];
   const bottom = [['inicio', 'Início', IC.home], ['catalogo', 'Catálogo', IC.book], ['virtual', 'Biblioteca', IC.pdf]].concat(D.leitor.associado ? [['cantigas', 'Cantigas', IC.music]] : [['ajuda', 'Ajuda', IC.help]]).concat([['perfil', 'Perfil', IC.user]]);
-  return `<div class="lp-shell">
+  return `<a class="lp-pular" href="#conteudo">Pular para o conteúdo</a><div class="lp-shell">
     <aside class="lp-side"><div class="lp-brand"><img src="${LOGO}" alt=""><div><b>Luzes de Aruanda</b><span>Biblioteca da associação</span></div></div>
       <div class="lp-sec">Leitor</div>${PAGINAS().map(navBtn).join('')}<div class="lp-div"></div>${contas.map(navBtn).join('')}
       <button class="lp-nav" data-act="sair">${IC.out}<span>Sair</span></button>${ART.waves}</aside>
-    <header class="lp-top"><img src="${LOGO}" alt=""><div><b>Luzes de Aruanda</b><span>Biblioteca da associação</span></div><button data-act="menu" aria-label="Menu">${IC.menu}</button></header>
-    <main class="lp-main">${conteudo}</main>
+    <header class="lp-top"><img src="${LOGO}" alt=""><div><b>Luzes de Aruanda</b><span>Biblioteca da associação</span></div><button data-act="menu" aria-label="Menu" aria-expanded="${MENU}">${IC.menu}</button></header>
+    <main class="lp-main${PG === 'virtual' && LV ? ' lv-on' : ''}" id="conteudo" tabindex="-1">${conteudo}</main>
     <nav class="lp-bottom" aria-label="Navegação">${bottom.map(([id, label, icon]) => `<button data-act="pg" data-pg="${id}" ${PG === id ? 'aria-current="page"' : ''}>${icon}<span>${label}</span></button>`).join('')}</nav>
-    ${MENU ? `<div class="lp-sheet" data-act="menuFechar"><div>${contas.map(navBtn).join('')}<button class="lp-nav" data-act="sair">${IC.out}<span>Sair</span></button></div></div>` : ''}
+    ${MENU ? `<div class="lp-sheet" data-act="menuFechar"><div role="dialog" aria-modal="true" aria-label="Menu">${contas.map(navBtn).join('')}<button class="lp-nav" data-act="sair">${IC.out}<span>Sair</span></button></div></div>` : ''}
   </div>`;
 }
-const cabecalho = (titulo, sub) => `<div class="lp-head"><div><h1>${titulo}</h1>${sub ? `<p>${sub}</p>` : ''}</div><button class="lp-btn light" data-act="atualizar" aria-label="Atualizar">${IC.ref}<span>Atualizar</span></button></div>`;
+const cabecalho = (titulo, sub) => `<div class="lp-head"><div><h1>${titulo}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="lp-head-bts"><div class="lp-acess" role="group" aria-label="Acessibilidade"><button class="lp-btn light" data-act="fonte" data-d="-1" aria-label="Diminuir a letra" ${fonteIdx() === 0 ? 'disabled' : ''}>A−</button><button class="lp-btn light" data-act="fonte" data-d="1" aria-label="Aumentar a letra" ${fonteIdx() === FONTES.length - 1 ? 'disabled' : ''}>A+</button><button class="lp-btn light" data-act="contraste" aria-pressed="${TEMA.get() === 'contraste'}" aria-label="Alto contraste" title="Alto contraste">${IC.contraste}</button></div><button class="lp-btn light" data-act="atualizar" aria-label="Atualizar">${IC.ref}<span>Atualizar</span></button></div></div>`;
 
 /* ---------- páginas ---------- */
 function inicio() {
@@ -147,48 +152,222 @@ function inicio() {
       <div class="lp-dest-wrap"><button class="lp-arrow l" data-act="rolar" data-d="-1" aria-label="Anterior">${IC.left}</button><div class="lp-dest" id="dest">${dest.map(x => `<button class="lp-item" ${x.act}><span class="th">${x.img ? `<img src="${x.img}" alt="" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(ART.bookThumb))">` : x.tipo === 'Livro' ? ART.bookThumb : ART.notes}</span>
         <span class="tx"><span class="lp-tag ${x.tipo === 'Cantiga' ? 'c' : ''}">${x.tipo}</span><b>${esc(x.t)}</b><span class="go">${x.go} →</span></span></button>`).join('')}</div><button class="lp-arrow r" data-act="rolar" data-d="1" aria-label="Próximo">${IC.right}</button></div>` : ''}`;
 }
-function catalogo() {
-  const gen = D.generos.filter(g => D.obras.some(o => o.genero === g.sigla));
-  return `${cabecalho('Catálogo Físico', 'Busque no acervo e peça a retirada. A biblioteca confirma e você recebe o protocolo para assinar.')}
-    <div class="toolbar"><label class="search" style="flex:1 1 240px"><span class="sr">Buscar</span>${IC.search}<input id="q" data-in="q" value="${esc(F.q)}" placeholder="Título ou autor" autocomplete="off"></label>
-      <select data-ch="g" aria-label="Gênero"><option value="">Todos os gêneros</option>${gen.map(g => `<option value="${g.sigla}" ${F.g === g.sigla ? 'selected' : ''}>${esc(g.nome)}</option>`).join('')}</select></div>
-    <div id="lista">${listaObras()}</div>`;
+/* ---------- gêneros (versão 1.9): ícone automático pelo nome do gênero, no mesmo painel das cantigas ---------- */
+Object.assign(IC, {
+  info: sv('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>', 2),
+  pausa: sv('<path d="M8 5v14M16 5v14"/>', 2.6), parar: sv('<rect x="6" y="6" width="12" height="12" rx="1.5"/>', 2),
+  contraste: sv('<circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor"/>')
+});
+const GEN_SVG = {
+  luz: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  lampada: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
+  relogio: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  pessoa: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
+  globo: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+  pena: '<path d="M20 4c-7 0-12 5-13 12l-3 4"/><path d="M20 4c0 7-5 12-12 12"/><path d="M8 16l5-5"/>',
+  balao: '<path d="M4 5h16v11H9l-5 4z"/>'
+};
+const GEN_RE = [[/umbanda/, 'estrela'], [/candombl|afro|africa|orixa/, 'tambor'], [/espirit|kardec/, 'luz'], [/esoter|ocult|mistic|tarot|astrolog/, 'lotus'], [/filosof/, 'lampada'], [/histor/, 'relogio'], [/biograf|memori/, 'pessoa'], [/estrangeir|mundial|traduz/, 'globo'], [/poesia|poema|poetic/, 'pena'], [/infant|juvenil|crianc/, 'balao'], [/auto.?ajuda|desenvolvimento pessoal|autoconhec/, 'coracao'], [/religi|catolic|biblia|evangel|crist/, 'vela'], [/natur|erva|planta|saude/, 'folha'], [/literatura|romance|brasileir|conto/, 'livro']];
+const GEN_SIG = { UMB: 'estrela', AFR: 'tambor', ESP: 'luz', ESO: 'lotus', FIL: 'lampada', HIS: 'relogio', BIO: 'pessoa', LBR: 'livro', LES: 'globo', POE: 'pena', INF: 'balao', AUT: 'coracao' };
+const genNome = s => !s || s === '_' ? 'Sem gênero' : ((D.generos || []).find(g => g.sigla === s) || { nome: s }).nome;
+function iconeGen(s) { const k = (GEN_RE.find(([re]) => re.test(norm(genNome(s)))) || [])[1] || GEN_SIG[String(s).toUpperCase()] || 'livro'; return sv(GEN_SVG[k] || ICONES_SEC[k]); }
+const naGen = (x, g) => !g || (g === '_' ? !x.genero : x.genero === g);
+function painelGen(lista, sel, act, tudo) {
+  const n = {}; lista.forEach(x => { const g = x.genero || '_'; n[g] = (n[g] || 0) + 1; });
+  const gens = Object.keys(n).sort((a, b) => (a === '_') - (b === '_') || genNome(a).localeCompare(genNome(b), 'pt-BR'));
+  const item = (g, nome, ic, q) => `<button type="button" class="ct-sec" data-act="${act}" data-id="${g}" aria-pressed="${sel === g}">${ic}<span>${esc(nome)}</span><span class="ct-n">${q}<span class="sr"> ${q === 1 ? 'livro' : 'livros'}</span></span></button>`;
+  return `<nav class="ct-secoes" aria-label="Gêneros"><div class="ct-sec-tit">${IC.camadas}<b>Gêneros</b></div>${item('', tudo, IC.book, lista.length)}${gens.map(g => item(g, genNome(g), iconeGen(g), n[g])).join('')}</nav>`;
 }
+const ordenar = (l, ord, data) => l.sort((a, b) => ord === 'autor' ? (a.autor || '').localeCompare(b.autor || '', 'pt-BR') || a.titulo.localeCompare(b.titulo, 'pt-BR')
+  : ord === 'recentes' ? String(data(b) || '').localeCompare(String(data(a) || '')) || a.titulo.localeCompare(b.titulo, 'pt-BR') : a.titulo.localeCompare(b.titulo, 'pt-BR'));
+const selOrd = (k, v) => `<select data-ch="${k}" aria-label="Ordenar"><option value="">Ordenar: título (A–Z)</option><option value="autor" ${v === 'autor' ? 'selected' : ''}>Ordenar: autor (A–Z)</option><option value="recentes" ${v === 'recentes' ? 'selected' : ''}>Ordenar: mais recentes</option></select>`;
+const contTxt = (n, g) => `<p class="small muted ct-cont">${n} ${n === 1 ? 'livro encontrado' : 'livros encontrados'}${g ? ` em “${esc(genNome(g))}”` : ''}</p>`;
+const tituloCard = (t, act, id) => `<h3 class="ct-t"><button type="button" class="ct-tlink" data-act="${act}" data-id="${id}">${esc(t)}</button></h3>`;
+
+/* ---------- catálogo físico (versão 1.9): painel de gêneros + filtros + cards com capa + tela do livro ---------- */
+const isbnLimpo = s => String(s || '').replace(/[^0-9Xx]/g, '');
+const capaObra = (o, grande) => isbnLimpo(o.isbn).length >= 10 ? `<img src="https://covers.openlibrary.org/b/isbn/${isbnLimpo(o.isbn)}-${grande ? 'L' : 'M'}.jpg?default=false" alt="${grande ? 'Capa de ' + esc(o.titulo) : ''}" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(ART.bookThumb))">` : ART.bookThumb;
+const pendentes = () => new Set(D.solicitacoes.filter(s => s.status === 'pendente').map(s => s.obraId));
+const dispTxt = o => o.disp ? `Disponíveis: ${o.disp} de ${o.total}` : o.total === 1 ? 'Emprestado no momento' : 'Todos emprestados no momento';
+const pedirBt = (o, pend) => pend.has(o.id) ? '<span class="pill warn">pedido feito</span>' : o.disp && !D.bloqueios.length ? `<button class="lp-btn ct-b" data-act="pedir" data-id="${o.id}">${IC.book}<span>Pedir retirada</span></button>` : '';
+const obrasFiltradas = () => { const q = norm(F.q); return ordenar(D.obras.filter(o => naGen(o, F.g) && (F.disp !== 'sim' || o.disp) && (!q || norm(`${o.titulo} ${o.autor} ${o.editora}`).includes(q))), F.ord, o => o.desde); };
 function listaObras() {
-  const q = norm(F.q), pend = new Set(D.solicitacoes.filter(s => s.status === 'pendente').map(s => s.obraId));
-  const l = D.obras.filter(o => (!F.g || o.genero === F.g) && (!q || norm(o.titulo + ' ' + o.autor).includes(q))).sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'));
-  if (!l.length) return '<div class="table-wrap"><div class="empty">Nenhum livro encontrado.</div></div>';
-  return `<p class="small muted">${l.length} ${l.length === 1 ? 'título' : 'títulos'}</p><div class="table-wrap cards"><table><thead><tr><th>Livro</th><th>Disponível</th><th><span class="sr">Ação</span></th></tr></thead><tbody>
-    ${l.slice(0, 300).map(o => `<tr id="obra-${o.id}"><td class="lead"><div class="t">${esc(o.titulo)}</div><div class="s">${esc(o.autor)}${o.ano ? ' · ' + o.ano : ''}</div></td>
-      <td data-label="Disponível">${o.disp ? `<span class="pill ok">${o.disp} de ${o.total}</span>` : '<span class="pill mute">emprestado</span>'}</td>
-      <td class="actions">${pend.has(o.id) ? '<span class="pill warn">pedido feito</span>' : o.disp && !D.bloqueios.length ? `<button class="btn sm primary" data-act="pedir" data-id="${o.id}">Pedir retirada</button>` : ''}</td></tr>`).join('')}
-  </tbody></table></div>`;
+  const l = obrasFiltradas(), pend = pendentes(), cont = contTxt(l.length, F.g);
+  if (!l.length) return cont + '<div class="lp-panel"><p class="muted" style="margin:0">Nenhum livro encontrado. Tente outro gênero ou limpe a busca.</p></div>';
+  return cont + l.slice(0, 300).map(o => { const ed = [o.editora, o.ano].filter(Boolean).join(' · '); return `<div class="cant-card livro" id="obra-${o.id}" data-act="oVer" data-id="${o.id}">
+    <span class="ct-th livro">${capaObra(o)}</span>
+    <span class="ct-tx">${tituloCard(o.titulo, 'oVer', o.id)}<i>${esc(o.autor || 'Autor não informado')}</i><span class="ct-meta">${ed ? `<span>${esc(ed)}</span>` : ''}${o.genero ? `<span>${esc(genNome(o.genero))}</span>` : ''}${o.digital ? '<span class="lp-tag">Também digital</span>' : ''}</span>
+      <span class="bk-disp${o.disp ? ' ok' : ''}">${dispTxt(o)}</span></span>
+    <span class="ct-bts">${pedirBt(o, pend)}<button class="lp-btn light ct-b" data-act="oVer" data-id="${o.id}" aria-label="Detalhes de ${esc(o.titulo)}">${IC.info}<span>Detalhes</span></button></span></div>`; }).join('');
 }
-/* ---------- biblioteca virtual (versão 1.7): PDF lido só na tela, com o nome do leitor em marca d'água ---------- */
-let DG = null, LV = null; const FD = { q: '', g: '' };
+const avisoBloqueio = () => D.bloqueios.length ? `<div class="note warn"><b>No momento você não pode retirar livros</b><span>${D.bloqueios.map(esc).join(' ')}</span></div>` : '';
+function catalogo() {
+  if (F.id) { const o = D.obras.find(x => x.id === F.id); if (o) return obraTela(o); F.id = ''; }
+  return `${cabecalho('Catálogo Físico', 'Busque no acervo e peça a retirada. A biblioteca confirma e você recebe o protocolo para assinar.')}
+    <div class="ct-grade">${painelGen(D.obras, F.g, 'oGen', 'Todos os livros')}
+    <div class="ct-conteudo"><div class="ct-filtros"><span class="ct-ftit">${IC.filtro}<b>Filtros:</b></span>
+        <select data-ch="odisp" aria-label="Disponibilidade"><option value="">Disponibilidade (todos)</option><option value="sim" ${F.disp === 'sim' ? 'selected' : ''}>Só os disponíveis</option></select>${selOrd('oord', F.ord)}</div>
+      <label class="search ct-busca"><span class="sr">Buscar no catálogo</span>${IC.search}<input id="q" data-in="q" type="search" value="${esc(F.q)}" placeholder="Buscar por título, autor ou editora" autocomplete="off"></label>
+      ${avisoBloqueio()}<div id="lista" class="cant-lista">${listaObras()}</div></div></div>`;
+}
+function obraTela(o) {
+  const dados = [['Editora', o.editora], ['Ano', o.ano], ['Edição', o.edicao], ['Gênero', o.genero && genNome(o.genero)], ['Idioma', o.idioma], ['ISBN', o.isbn], ['No acervo desde', fmtD(o.desde)]].filter(x => x[1]);
+  return `<div class="ct-topo"><button class="btn sm ghost" data-act="oVoltar">← Voltar ao catálogo</button></div>
+    <article class="bk-det"><div class="bk-capa">${capaObra(o, true)}</div>
+      <div class="bk-info"><h1 id="tela-tit" tabindex="-1">${esc(o.titulo)}</h1><p class="bk-autor">${esc(o.autor || 'Autor não informado')}</p>
+        <p class="bk-disp grande${o.disp ? ' ok' : ''}">${dispTxt(o)}</p>
+        <div class="ct-bts ct-bts-det">${pedirBt(o, pendentes())}</div>${avisoBloqueio()}
+        <dl class="ct-info">${dados.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}<dt>Exemplares</dt><dd>${o.total} no acervo · ${o.disp} ${o.disp === 1 ? 'disponível' : 'disponíveis'}</dd></dl>
+        <p class="small muted">Depois do pedido, o livro fica separado para você por ${D.config.diasSolicitacao} ${D.config.diasSolicitacao === 1 ? 'dia' : 'dias'}. Prazo de devolução: ${D.config.prazo} dias após a retirada.</p>
+        ${o.digital ? `<div class="lp-panel bk-tambem">${IC.pdf}<div><b>Também na Biblioteca Virtual</b><span class="small muted">Você pode ler este livro agora mesmo, na tela.</span></div><button class="lp-btn ct-b" data-act="dVer" data-id="${o.digital}">${IC.pdf}<span>Ver na Biblioteca Virtual</span></button></div>` : ''}</div></article>`;
+}
+
+/* ---------- biblioteca virtual (1.7; layout 1.9): PDF lido só na tela, com o nome do leitor em marca d'água ---------- */
+let DG = null, LV = null; const FD = { q: '', g: '', ord: '', comecei: false, id: '' };
 const AUTZ_TXT = { 'Domínio público': 'Obra em domínio público.', 'Publicação própria da casa': 'Publicação da própria casa.', 'Autorizado pelo autor ou editora': 'Publicado com autorização do autor ou da editora.' };
+const posDe = id => (DG && DG.pos && DG.pos[id]) || null;
+const lerRot = d => { const p = posDe(d.id); return p && p.pag > 1 ? `Continuar da pág. ${p.pag}` : 'Ler'; };
+const capaDig = (d, grande) => d.capa ? `<img src="${d.capa}" alt="${grande ? 'Capa de ' + esc(d.titulo) : ''}">` : ART.bookThumb;
+const progresso = d => { const p = posDe(d.id); if (!p || !p.total) return ''; const pc = Math.min(100, Math.round(p.pag / p.total * 100)); return `<span class="bk-prog" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Lido: ${pc}%"><span style="width:${pc}%"></span></span>`; };
+const digFiltrados = () => { const q = norm(FD.q); return ordenar(DG.digitais.filter(d => naGen(d, FD.g) && (!FD.comecei || posDe(d.id)) && (!q || norm(`${d.titulo} ${d.autor} ${d.descricao}`).includes(q))), FD.ord, d => d.criadoEm); };
 function listaDigitais() {
-  const q = norm(FD.q), l = DG.digitais.filter(d => (!FD.g || d.genero === FD.g) && (!q || norm(`${d.titulo} ${d.autor}`).includes(q))).sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'));
-  if (!l.length) return `<p class="muted">${DG.digitais.length ? 'Nenhum livro encontrado.' : 'Ainda não há livros digitais. Volte em breve!'}</p>`;
-  return `<div class="lv-grade">${l.map(d => `<button class="lv-livro" data-act="lvAbrir" data-id="${d.id}"><span class="cap">${d.capa ? `<img src="${d.capa}" alt="">` : ART.bookThumb}</span><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || '')}</span>${d.soAssociados ? '<span class="lp-tag c">Associados</span>' : ''}</button>`).join('')}</div>`;
+  if (!DG.digitais.length) return '<div class="lp-panel"><p class="muted" style="margin:0">Ainda não há livros digitais. Volte em breve!</p></div>';
+  const l = digFiltrados(), cont = contTxt(l.length, FD.g);
+  if (!l.length) return cont + `<div class="lp-panel"><p class="muted" style="margin:0">${FD.comecei ? 'Você ainda não começou nenhum livro com esses filtros.' : 'Nenhum livro encontrado. Tente outro gênero ou limpe a busca.'}</p></div>`;
+  return cont + l.map(d => { const des = String(d.descricao || '').trim(); return `<div class="cant-card livro" id="dig-${d.id}" data-act="dVer" data-id="${d.id}">
+    <span class="ct-th livro">${capaDig(d)}</span>
+    <span class="ct-tx">${tituloCard(d.titulo, 'dVer', d.id)}<i>${esc(d.autor || 'Autor não informado')}</i>${des ? `<span class="bk-desc">${esc(des)}</span>` : ''}<span class="ct-meta">${d.genero ? `<span>${esc(genNome(d.genero))}</span>` : ''}${d.ano ? `<span>${esc(d.ano)}</span>` : ''}${d.soAssociados ? '<span class="lp-tag c">Associados</span>' : ''}</span>${progresso(d)}</span>
+    <span class="ct-bts"><button class="lp-btn ct-b" data-act="lvAbrir" data-id="${d.id}" aria-label="${lerRot(d)}: ${esc(d.titulo)}">${IC.pdf}<span>${lerRot(d)}</span></button><button class="lp-btn light ct-b" data-act="dVer" data-id="${d.id}" aria-label="Detalhes de ${esc(d.titulo)}">${IC.info}<span>Detalhes</span></button></span></div>`; }).join('');
+}
+function continuarCard() {
+  const l = DG.digitais.filter(d => posDe(d.id)).sort((a, b) => String(posDe(b.id).em).localeCompare(String(posDe(a.id).em))), d = l[0]; if (!d) return '';
+  const p = posDe(d.id);
+  return `<section class="lp-panel bk-cont" aria-label="Continuar de onde parei"><span class="ct-th livro">${capaDig(d)}</span><div class="bk-cont-tx"><span class="small muted">Continuar de onde parei</span><b>${esc(d.titulo)}</b><span class="small">Página ${p.pag}${p.total ? ` de ${p.total}` : ''}</span>${progresso(d)}</div>
+    <button class="lp-btn ct-b" data-act="lvAbrir" data-id="${d.id}">${IC.pdf}<span>Continuar</span></button></section>`;
+}
+function digitalTela(d) {
+  const p = posDe(d.id), fis = d.obraId && D.obras.find(o => o.id === d.obraId);
+  const dados = [['Gênero', d.genero && genNome(d.genero)], ['Ano', d.ano], ['Acesso', d.soAssociados ? 'Só para associados' : 'Todos os leitores'], ['Autorização', d.autorizacao]].filter(x => x[1]);
+  return `<div class="ct-topo"><button class="btn sm ghost" data-act="dVoltar">← Voltar aos livros</button></div>
+    <article class="bk-det"><div class="bk-capa">${capaDig(d, true)}</div>
+      <div class="bk-info"><h1 id="tela-tit" tabindex="-1">${esc(d.titulo)}</h1><p class="bk-autor">${esc(d.autor || 'Autor não informado')}</p>
+        ${p ? `<p class="small">Você parou na página ${p.pag}${p.total ? ` de ${p.total}` : ''}.</p>${progresso(d)}` : ''}
+        <div class="ct-bts ct-bts-det"><button class="lp-btn ct-b" data-act="lvAbrir" data-id="${d.id}">${IC.pdf}<span>${lerRot(d)}</span></button>${p && p.pag > 1 ? `<button class="lp-btn light ct-b" data-act="lvAbrir" data-id="${d.id}" data-inicio="1">${IC.ref}<span>Começar do início</span></button>` : ''}<button class="lp-btn light ct-b" data-act="lvAbrir" data-id="${d.id}" data-ouvir="1">${IC.fone}<span>Ouvir o livro</span></button></div>
+        ${d.descricao ? `<h2 class="bk-sub">Sobre o livro</h2><p class="bk-texto">${esc(d.descricao).replace(/\n/g, '<br>')}</p>` : ''}
+        <dl class="ct-info">${dados.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+        <p class="small muted">${esc(AUTZ_TXT[d.autorizacao] || '')} A leitura é feita só nesta tela e cada página mostra o nome de quem está lendo.</p>
+        ${fis ? `<div class="lp-panel bk-tambem">${IC.book}<div><b>Também no acervo físico</b><span class="small muted">${dispTxt(fis)} para retirada.</span></div><button class="lp-btn light ct-b" data-act="oVer" data-id="${fis.id}">${IC.book}<span>Ver no catálogo</span></button></div>` : ''}</div></article>`;
 }
 function virtual() {
   if (!DG) return cabecalho('Biblioteca Virtual') + '<p class="muted">Carregando…</p>';
-  if (LV) { const d = LV.d; return `<div class="lv-topo"><button class="btn sm ghost" data-act="lvFechar">← Voltar aos livros</button><div class="lv-tit"><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || '')}</span></div></div>
-      ${LV.pdf ? `<div class="lv-barra"><button class="lp-btn light" data-act="lvPag" data-d="-1" aria-label="Página anterior">${IC.left}</button><span class="lv-ind"><input id="lv-ir" inputmode="numeric" value="${LV.pag}" aria-label="Página"> de ${LV.total}</span><button class="lp-btn light" data-act="lvPag" data-d="1" aria-label="Próxima página">${IC.right}</button>
-        <span class="lv-zoom"><button class="lp-btn light lv-modo" data-act="lvModo" title="Trocar o modo de leitura">${LV.modo === 'rolagem' ? IC.pagina + '<span>Página a página</span>' : IC.rolar + '<span>Rolagem contínua</span>'}</button><button class="lp-btn light" data-act="lvZoom" data-d="-1" aria-label="Diminuir">−</button><button class="lp-btn light" data-act="lvZoom" data-d="1" aria-label="Aumentar">+</button></span></div>
-        ${LV.modo === 'rolagem' ? `<div class="lv-folha lv-rolo" id="lv-rolo">${Array.from({ length: LV.total }, (_, i) => `<div class="lv-pg" data-p="${i + 1}" style="aspect-ratio:${LV.ratio};width:${Math.round(LV.zoom * 100)}%;max-width:${Math.round(900 * LV.zoom)}px"><canvas></canvas><span class="lv-num">${i + 1}</span></div>`).join('')}</div>`
-          : `<div class="lv-folha" id="lv-folha"><canvas id="lv-canvas"></canvas></div>`}<p class="small muted lv-aviso">Leitura só nesta tela. ${esc(AUTZ_TXT[d.autorizacao] || '')} Cada página mostra o nome de quem está lendo.</p>`
-      : `<div class="lp-panel"><p id="lv-prog">Abrindo o livro…</p></div>`}`; }
-  const gens = [...new Set(DG.digitais.map(d => d.genero).filter(Boolean))], gNome = s => ((D.generos || []).find(g => g.sigla === s) || { nome: s }).nome;
+  if (LV) { const d = LV.d; return `<div class="lv-topo"><button class="btn sm ghost" data-act="lvFechar">← ${FD.id ? 'Voltar ao livro' : 'Voltar aos livros'}</button><div class="lv-tit"><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || '')}</span></div></div>
+      ${LV.pdf ? `<div class="lv-barra" role="toolbar" aria-label="Leitura"><button class="lp-btn light" data-act="lvPag" data-d="-1" aria-label="Página anterior">${IC.left}</button><span class="lv-ind"><input id="lv-ir" inputmode="numeric" value="${LV.pag}" aria-label="Página atual (digite para ir)"> de ${LV.total}</span><button class="lp-btn light" data-act="lvPag" data-d="1" aria-label="Próxima página">${IC.right}</button>
+        <span class="lv-zoom"><button class="lp-btn light lv-ouvir" data-act="ttsAbrir" aria-pressed="${TTS.on}" aria-label="Ouvir em voz alta">${IC.fone}<span>Ouvir</span></button><button class="lp-btn light lv-modo" data-act="lvModo" title="Trocar o modo de leitura">${LV.modo === 'rolagem' ? IC.pagina + '<span>Página a página</span>' : IC.rolar + '<span>Rolagem contínua</span>'}</button><button class="lp-btn light" data-act="lvZoom" data-d="-1" aria-label="Diminuir o tamanho da página">−</button><button class="lp-btn light" data-act="lvZoom" data-d="1" aria-label="Aumentar o tamanho da página">+</button></span>
+        <div id="lv-tts" class="lv-tts-box">${ttsPainel()}</div></div>
+        ${LV.modo === 'rolagem' ? `<div class="lv-folha lv-rolo" id="lv-rolo">${Array.from({ length: LV.total }, (_, i) => `<div class="lv-pg" data-p="${i + 1}" style="aspect-ratio:${LV.ratio};width:${Math.round(LV.zoom * 100)}%;max-width:${Math.round(900 * LV.zoom)}px"><canvas role="img" aria-label="Página ${i + 1} de ${LV.total}"></canvas><span class="lv-num" aria-hidden="true">${i + 1}</span></div>`).join('')}</div>`
+          : `<div class="lv-folha" id="lv-folha"><canvas id="lv-canvas" role="img" aria-label="Página ${LV.pag} de ${LV.total}"></canvas></div>`}<p class="small muted lv-aviso">Leitura só nesta tela. ${esc(AUTZ_TXT[d.autorizacao] || '')} Cada página mostra o nome de quem está lendo. Para ouvir o texto, use o botão “Ouvir”.</p>`
+      : `<div class="lp-panel"><p id="lv-prog" role="status">Abrindo o livro…</p></div>`}`; }
+  if (FD.id) { const d = DG.digitais.find(x => x.id === FD.id); if (d) return digitalTela(d); FD.id = ''; }
   return `${cabecalho('Biblioteca Virtual', 'Leia os livros digitais da biblioteca aqui mesmo, no celular ou no computador.')}
-    <div class="toolbar"><label class="search" style="flex:1 1 240px"><span class="sr">Buscar</span>${IC.search}<input data-in="dq" value="${esc(FD.q)}" placeholder="Título ou autor" autocomplete="off"></label>
-      ${gens.length > 1 ? `<select data-ch="dg" aria-label="Gênero"><option value="">Todos os gêneros</option>${gens.map(g => `<option value="${g}" ${FD.g === g ? 'selected' : ''}>${esc(gNome(g))}</option>`).join('')}</select>` : ''}</div>
-    <div id="dlista">${listaDigitais()}</div>`;
+    ${continuarCard()}<div class="ct-grade">${painelGen(DG.digitais, FD.g, 'dGen', 'Todos os livros')}
+    <div class="ct-conteudo"><div class="ct-filtros"><span class="ct-ftit">${IC.filtro}<b>Filtros:</b></span>${selOrd('dord', FD.ord)}
+        <label class="check small ct-casa"><input type="checkbox" data-ch="dcom" ${FD.comecei ? 'checked' : ''}> Só os que comecei</label></div>
+      <label class="search ct-busca"><span class="sr">Buscar na Biblioteca Virtual</span>${IC.search}<input data-in="dq" type="search" value="${esc(FD.q)}" placeholder="Buscar por título, autor ou assunto" autocomplete="off"></label>
+      <div id="dlista" class="cant-lista">${listaDigitais()}</div></div></div>`;
 }
+
+/* ---------- onde parei (versão 1.9): fica no servidor, para continuar em qualquer aparelho ---------- */
+let POS_PEND = null, posTimer = null;
+const agoraTxt = () => { const d = new Date(); return `${hoje()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+function enviarPos(sair) {
+  clearTimeout(posTimer); const p = POS_PEND; POS_PEND = null; if (!p || !token()) return;
+  try { fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify({ action: 'leitor.posicao', payload: Object.assign({ token: token() }, p) }), redirect: 'follow', keepalive: !!sair }).catch(() => { }); } catch (e) { }
+}
+function guardarPos() {
+  if (!LV || !LV.pdf || !DG) return; const id = LV.d.id, ant = posDe(id);
+  if (ant && ant.pag === LV.pag && ant.total === LV.total) return;
+  (DG.pos = DG.pos || {})[id] = { pag: LV.pag, total: LV.total, em: agoraTxt() };
+  POS_PEND = { id, pag: LV.pag, total: LV.total }; clearTimeout(posTimer); posTimer = setTimeout(() => enviarPos(), 4000);
+}
+addEventListener('pagehide', () => enviarPos(true));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') enviarPos(true); });
+
+/* ---------- leitor audível (versão 1.9): a voz do próprio aparelho lê o texto do PDF, página por página ---------- */
+const TTS = { on: false, lendo: false, pag: 0, partes: [], i: 0, gen: 0, vazias: 0, rate: +(ls.get('bibVel') || 1) || 1, voz: ls.get('bibVoz') || '' };
+const temVoz = () => 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+const vozesPt = () => temVoz() ? speechSynthesis.getVoices().filter(v => /^pt/i.test(v.lang)).sort((a, b) => (b.lang === 'pt-BR') - (a.lang === 'pt-BR')) : [];
+if (temVoz()) speechSynthesis.onvoiceschanged = () => ttsAtualizar();
+async function textoPag(n) {
+  const tc = await (await LV.pdf.getPage(n)).getTextContent(); let s = '';
+  tc.items.forEach(it => { s += it.str || ''; s += it.hasEOL ? '\n' : (it.str && !/\s$/.test(it.str) ? ' ' : ''); });
+  return s.replace(/-\n(\p{Ll})/gu, '$1').replace(/\s+/g, ' ').trim();
+}
+// frases curtas: o Chrome corta falas longas, e assim a pausa recomeça da frase atual
+const fatiar = t => { const out = []; (t.match(/[^.!?;:]+[.!?;:]*\s*/g) || []).forEach(f => { f = f.trim(); while (f.length > 220) { let k = f.lastIndexOf(' ', 220); if (k < 80) k = 220; out.push(f.slice(0, k)); f = f.slice(k).trim(); } if (f) out.push(f); }); return out; };
+function ttsPainel() {
+  if (!TTS.on) return '';
+  if (!temVoz()) return '<p class="small muted lv-frase">Este navegador não tem leitura em voz alta. Tente pelo Chrome, Edge ou Safari atualizados.</p>';
+  const vs = vozesPt(), pausado = !TTS.lendo && TTS.partes.length;
+  return `<div class="lv-tts" role="group" aria-label="Leitura em voz alta">
+    <button class="lp-btn ct-b" data-act="ttsPlay">${TTS.lendo ? IC.pausa + '<span>Pausar</span>' : IC.play + `<span>${pausado ? 'Continuar' : 'Ler em voz alta'}</span>`}</button>
+    <button class="lp-btn light ct-b" data-act="ttsParar" ${TTS.lendo || pausado ? '' : 'disabled'}>${IC.parar}<span>Parar</span></button>
+    <label class="small">Velocidade <select data-ch="ttsVel">${[0.75, 1, 1.25, 1.5, 1.75].map(v => `<option value="${v}" ${TTS.rate === v ? 'selected' : ''}>${String(v).replace('.', ',')}×</option>`).join('')}</select></label>
+    ${vs.length > 1 ? `<label class="small">Voz <select data-ch="ttsVoz">${vs.map(v => `<option value="${esc(v.voiceURI)}" ${v.voiceURI === TTS.voz ? 'selected' : ''}>${esc(v.name.replace(/^(Microsoft|Google) /, ''))}</option>`).join('')}</select></label>` : ''}
+    <p class="small lv-frase" id="lv-frase" aria-live="off">${TTS.lendo || pausado ? `${TTS.lendo ? 'Lendo' : 'Pausado na'} página ${TTS.pag}…` : vs.length ? 'O livro é lido pela voz do seu aparelho, a partir da página em que você está.' : 'Seu aparelho não tem voz em português instalada; a leitura pode sair com sotaque.'}</p></div>`;
+}
+function ttsAtualizar() {
+  const el = $('#lv-tts'); if (!el) return; const a = document.activeElement, f = a && el.contains(a) ? a.dataset.act || a.dataset.ch : null;
+  el.innerHTML = ttsPainel(); if (f) { const b = el.querySelector(`[data-act="${f}"],[data-ch="${f}"]`); if (b) b.focus(); }
+  const bt = $('[data-act=ttsAbrir]'); if (bt) bt.setAttribute('aria-pressed', TTS.on);
+}
+function marcarLendo(n) {
+  document.querySelectorAll('.lendo').forEach(x => x.classList.remove('lendo')); if (!TTS.lendo) return;
+  const el = LV && LV.modo === 'rolagem' ? $(`#lv-rolo [data-p="${n}"]`) : $('#lv-folha'); if (el) el.classList.add('lendo');
+}
+const ttsDestravar = () => { try { if (temVoz() && !TTS.ok) { speechSynthesis.speak(new SpeechSynthesisUtterance('')); TTS.ok = true; } } catch (e) { } }; // iPhone: a 1ª fala precisa nascer do toque
+async function ttsLer(n, i = 0) {
+  if (!LV || !LV.pdf || !TTS.lendo) return;
+  if (n > LV.total) { ttsParar(); toast('Fim do livro.'); return; }
+  const g = TTS.gen; let txt = ''; try { txt = await textoPag(n); } catch (e) { }
+  if (g !== TTS.gen || !TTS.lendo) return;
+  TTS.pag = n; if (n !== LV.pag) irPag(n);
+  TTS.partes = fatiar(txt); TTS.i = i;
+  if (!TTS.partes.length) { if (++TTS.vazias >= 3) { ttsParar(); toast('Estas páginas não têm texto para ler — o livro provavelmente foi escaneado como imagem.', 'bad'); return; } ttsLer(n + 1); return; }
+  TTS.vazias = 0; ttsAtualizar(); marcarLendo(n); aviso(`Lendo a página ${n}`); ttsFalar(g);
+}
+function ttsFalar(g) {
+  if (g !== TTS.gen || !TTS.lendo) return;
+  if (TTS.i >= TTS.partes.length) { ttsLer(TTS.pag + 1); return; }
+  const u = new SpeechSynthesisUtterance(TTS.partes[TTS.i]), vs = vozesPt(), v = vs.find(x => x.voiceURI === TTS.voz) || vs[0];
+  u.lang = v ? v.lang : 'pt-BR'; u.rate = TTS.rate; if (v) u.voice = v;
+  u.onend = () => { if (g === TTS.gen) { TTS.i++; ttsFalar(g); } };
+  u.onerror = e => { if (g === TTS.gen && !/interrupted|canceled/.test(e.error)) { TTS.i++; ttsFalar(g); } };
+  const fr = $('#lv-frase'); if (fr) fr.textContent = `Página ${TTS.pag}: “${TTS.partes[TTS.i]}”`;
+  speechSynthesis.speak(u);
+}
+function ttsPlay() {
+  if (!temVoz() || !LV || !LV.pdf) return;
+  if (TTS.lendo) { TTS.lendo = false; TTS.gen++; speechSynthesis.cancel(); ttsAtualizar(); marcarLendo(0); return; } // pausa
+  ttsDestravar(); speechSynthesis.cancel(); TTS.gen++; TTS.lendo = true; TTS.vazias = 0;
+  if (TTS.partes.length && TTS.pag === LV.pag) { ttsAtualizar(); marcarLendo(TTS.pag); ttsFalar(TTS.gen); } else ttsLer(LV.pag);
+}
+function ttsParar() { TTS.lendo = false; TTS.partes = []; TTS.i = 0; TTS.gen++; if (temVoz()) speechSynthesis.cancel(); marcarLendo(0); ttsAtualizar(); }
+function ttsFechar() { if (TTS.on || TTS.lendo) { ttsParar(); TTS.on = false; ttsAtualizar(); } }
+
+/* ---------- acessibilidade (versão 1.9) ---------- */
+const FONTES = [0.9, 1, 1.15, 1.3, 1.5];
+const fonteIdx = () => { const i = parseInt(ls.get('bibFonte'), 10); return i >= 0 && i < FONTES.length ? i : 1; };
+const aplicarFonte = () => document.documentElement.style.setProperty('--fz', FONTES[fonteIdx()]);
+aplicarFonte();
+const SUAVE = () => matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+function aviso(msg) { let a = $('#aviso'); if (!a) { a = document.createElement('div'); a.id = 'aviso'; a.className = 'sr'; a.setAttribute('aria-live', 'polite'); document.body.appendChild(a); } a.textContent = ''; setTimeout(() => { a.textContent = msg; }, 80); }
+function focoTela() { window.scrollTo(0, 0); const h = $('#tela-tit') || $('.lp-main h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); aviso(h.textContent); } }
+function focoVolta(id) { const c = id && document.getElementById(id); const b = c && c.querySelector('.ct-tlink'); if (b) { b.focus({ preventScroll: true }); c.scrollIntoView({ block: 'center' }); } else focoTela(); }
+let avisoTimer; const avisoLista = sel => { clearTimeout(avisoTimer); avisoTimer = setTimeout(() => { const c = $(sel + ' .ct-cont'); if (c) aviso(c.textContent); }, 700); };
 const carregarScript = src => new Promise((res, rej) => { if (document.querySelector(`script[src="${src}"]`)) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Não foi possível abrir o leitor de PDF. Confira a internet e tente de novo.')); document.head.appendChild(s); });
 const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
-async function abrirLivro(d) {
+async function abrirLivro(d, op = {}) {
+  ttsFechar(); enviarPos();
   let modo = 'rolagem'; try { modo = localStorage.getItem('bibModo') || 'rolagem'; } catch (e) { }
   LV = { d, pdf: null, pag: 1, total: 0, zoom: 1, modo, ratio: '3/4' }; render(); window.scrollTo(0, 0);
   await carregarScript(PDFJS + 'pdf.min.js'); pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js';
@@ -200,8 +379,10 @@ async function abrirLivro(d) {
   const tam = pedacos.reduce((s, p) => s + p.length, 0), dados = new Uint8Array(tam); let o = 0; pedacos.forEach(p => { dados.set(p, o); o += p.length; });
   const pdf = await pdfjsLib.getDocument({ data: dados, isEvalSupported: false }).promise; if (!LV || LV.d.id !== d.id) return;
   let ult = 1; try { ult = +localStorage.getItem('bibPag_' + d.id) || 1; } catch (e) { }
+  if (posDe(d.id)) ult = posDe(d.id).pag; if (op.inicio) ult = 1;
   const v1 = (await pdf.getPage(1)).getViewport({ scale: 1 });
-  Object.assign(LV, { pdf, total: pdf.numPages, pag: Math.min(Math.max(1, ult), pdf.numPages), ratio: `${Math.round(v1.width)}/${Math.round(v1.height)}` }); render();
+  Object.assign(LV, { pdf, total: pdf.numPages, pag: Math.min(Math.max(1, ult), pdf.numPages), ratio: `${Math.round(v1.width)}/${Math.round(v1.height)}` }); render(); aviso(`Livro aberto na página ${LV.pag} de ${LV.total}`);
+  if (op.ouvir) { TTS.on = true; ttsAtualizar(); ttsPlay(); }
 }
 // marca d'água (versão 1.7.1): logo do terreiro bem clarinho no centro + nome, parte do CPF e data no rodapé
 const logoImg = new Image(); logoImg.src = LOGO;
@@ -219,12 +400,12 @@ async function desenharEm(cv, num, larg) {
   try { await task.promise; } catch (e) { return false; } cv._task = null;
   marcaDagua(ctx, vp.width, vp.height); return true;
 }
-const salvarPag = () => { try { localStorage.setItem('bibPag_' + LV.d.id, LV.pag); } catch (e) { } const ind = $('#lv-ir'); if (ind) ind.value = LV.pag; };
+const salvarPag = () => { try { localStorage.setItem('bibPag_' + LV.d.id, LV.pag); } catch (e) { } const ind = $('#lv-ir'); if (ind) ind.value = LV.pag; guardarPos(); };
 // modo página a página
 async function desenharPagina() {
   if (!LV || !LV.pdf) return; const cv = $('#lv-canvas'), box = $('#lv-folha'); if (!cv || !box) return;
   const larg = Math.max(280, Math.min(box.clientWidth - 2, 900)) * LV.zoom;
-  if (await desenharEm(cv, LV.pag, larg)) { cv.style.width = Math.round(larg) + 'px'; salvarPag(); }
+  if (await desenharEm(cv, LV.pag, larg)) { cv.style.width = Math.round(larg) + 'px'; cv.setAttribute('aria-label', `Página ${LV.pag} de ${LV.total}`); salvarPag(); }
 }
 // modo rolagem contínua: as páginas são desenhadas quando chegam perto da tela e liberadas quando ficam longe
 function montarRolo() {
@@ -238,8 +419,8 @@ function montarRolo() {
 }
 const mostrarLivro = () => { if (!LV || !LV.pdf) return; if (LV.modo === 'rolagem') montarRolo(); else desenharPagina(); };
 const irPag = n => { if (!LV || !LV.pdf) return; const p = Math.min(Math.max(1, n), LV.total);
-  if (LV.modo === 'rolagem') { const el = $(`#lv-rolo [data-p="${p}"]`); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
-  if (p === LV.pag) return; LV.pag = p; desenharPagina(); const f = $('#lv-folha'); if (f) f.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
+  if (LV.modo === 'rolagem') { const el = $(`#lv-rolo [data-p="${p}"]`); if (el) el.scrollIntoView({ block: 'start', behavior: SUAVE() }); return; }
+  if (p === LV.pag) return; LV.pag = p; desenharPagina(); const f = $('#lv-folha'); if (f) f.scrollIntoView({ block: 'start', behavior: SUAVE() }); };
 const SOL = { pendente: ['Aguardando a biblioteca', 'warn'], confirmada: ['Confirmado', 'ok'], recusada: ['Não confirmado', 'bad'], expirada: ['Expirou', 'mute'], cancelada: ['Cancelado', 'mute'] };
 function perfil() {
   const l = D.leitor, at = D.emprestimos.filter(x => !x.dataDev), hist = D.emprestimos.filter(x => x.dataDev), h = hoje();
@@ -302,9 +483,9 @@ function listaCantigas() {
   const l = cFiltradas(), sec = FC.sec && C.secoes.find(x => x.id === FC.sec);
   const cont = `<p class="small muted ct-cont">${l.length} ${l.length === 1 ? 'cantiga encontrada' : 'cantigas encontradas'}${sec ? ` em “${esc(sec.nome)}”` : ''}</p>`;
   if (!l.length) return cont + '<div class="lp-panel"><p class="muted" style="margin:0">Nenhuma cantiga encontrada. Tente outra seção ou limpe os filtros.</p></div>';
-  return cont + l.map(c => { const v1 = (c.letra || '').split('\n').find(x => x.trim()) || ''; return `<div class="cant-card" data-act="cVer" data-id="${c.id}" role="button" tabindex="0">
+  return cont + l.map(c => { const v1 = (c.letra || '').split('\n').find(x => x.trim()) || ''; return `<div class="cant-card" id="cant-${c.id}" data-act="cVer" data-id="${c.id}">
     <span class="ct-th">${cThumb(c)}${c.youtube ? `<span class="ct-play">${IC.play}</span>` : ''}</span>
-    <span class="ct-tx"><b>${esc(c.titulo)}</b>${v1 ? `<i>${esc(v1)}</i>` : ''}<span class="ct-meta">${c.secoes[0] ? `<span>${esc(cSecCurto(c.secoes[0]))}</span>` : ''}${c.toqueId ? `<span>${esc(cToq(c.toqueId))}</span>` : ''}<span>${cMidia(c)}</span>${c.origem === 'casa' ? '<span class="lp-tag c">Da casa</span>' : ''}</span></span>
+    <span class="ct-tx">${tituloCard(c.titulo, 'cVer', c.id)}${v1 ? `<i>${esc(v1)}</i>` : ''}<span class="ct-meta">${c.secoes[0] ? `<span>${esc(cSecCurto(c.secoes[0]))}</span>` : ''}${c.toqueId ? `<span>${esc(cToq(c.toqueId))}</span>` : ''}<span>${cMidia(c)}</span>${c.origem === 'casa' ? '<span class="lp-tag c">Da casa</span>' : ''}</span></span>
     <span class="ct-bts">${cBotoes(c)}</span></div>`; }).join('');
 }
 function cantigaTela(c) {
@@ -354,26 +535,37 @@ function render() {
   if (V !== 'app') { $('#app').innerHTML = LOGIN[V](); const f = $('#app input'); if (f) f.focus(); return; }
   const pg = { inicio, catalogo, virtual, cantigas, perfil, ajuda }[PG] || inicio;
   $('#app').innerHTML = moldura(pg());
-  if (PG === 'virtual' && LV && LV.pdf) mostrarLivro();
+  if (PG === 'virtual' && LV && LV.pdf) { mostrarLivro(); if (TTS.lendo) setTimeout(() => marcarLendo(TTS.pag), 50); }
 }
 
 /* ---------- ações ---------- */
 const ACT = {
   ir: t => { V = t.dataset.v; render(); },
   pg: t => irPara(t.dataset.pg),
-  menu: () => { MENU = true; render(); },
+  menu: () => { MENU = true; render(); const b = $('.lp-sheet button'); if (b) b.focus(); },
   tema: t => { TEMA.set(t.dataset.t); render(); },
   menuFechar: (t, e) => { if (e.target === t) { MENU = false; render(); } },
   sair: () => sair(),
-  lvAbrir: t => { const d = DG.digitais.find(x => x.id === t.dataset.id); if (d) run(() => abrirLivro(d).catch(e => { LV = null; render(); throw e; })); },
-  lvFechar: () => { if (LV && LV.obs) { LV.obs.disconnect(); LV.vis.disconnect(); } LV = null; render(); window.scrollTo(0, 0); },
-  lvPag: t => irPag(LV.pag + +t.dataset.d),
+  lvAbrir: t => { const d = DG.digitais.find(x => x.id === t.dataset.id); if (!d) return; if (t.dataset.ouvir) ttsDestravar(); run(() => abrirLivro(d, { inicio: !!t.dataset.inicio, ouvir: !!t.dataset.ouvir }).catch(e => { LV = null; render(); throw e; })); },
+  lvFechar: () => { ttsFechar(); enviarPos(); const id = LV && LV.d.id; if (LV && LV.obs) { LV.obs.disconnect(); LV.vis.disconnect(); } LV = null; render(); if (FD.id) focoTela(); else focoVolta('dig-' + id); },
+  lvPag: t => { const p = Math.min(Math.max(1, LV.pag + +t.dataset.d), LV.total); if (TTS.lendo) { TTS.gen++; speechSynthesis.cancel(); TTS.partes = []; ttsLer(p); } else irPag(p); },
+  ttsAbrir: () => { if (TTS.on) ttsFechar(); else { TTS.on = true; ttsAtualizar(); const b = $('[data-act=ttsPlay]'); if (b) b.focus(); } },
+  ttsPlay: () => ttsPlay(),
+  ttsParar: () => ttsParar(),
+  fonte: t => { ls.set('bibFonte', Math.min(FONTES.length - 1, Math.max(0, fonteIdx() + +t.dataset.d))); aplicarFonte(); render(); const b = $(`[data-act=fonte][data-d="${t.dataset.d}"]`); if (b && !b.disabled) b.focus(); aviso(`Letra em ${Math.round(FONTES[fonteIdx()] * 100)}%`); },
+  contraste: () => { TEMA.set(TEMA.get() === 'contraste' ? 'auto' : 'contraste'); render(); const b = $('[data-act=contraste]'); if (b) b.focus(); aviso(TEMA.get() === 'contraste' ? 'Alto contraste ligado' : 'Alto contraste desligado'); },
+  oGen: t => { F.g = t.dataset.id; render(); const b = $(`[data-act=oGen][data-id="${t.dataset.id}"]`); if (b) b.focus(); avisoLista('#lista'); },
+  dGen: t => { FD.g = t.dataset.id; render(); const b = $(`[data-act=dGen][data-id="${t.dataset.id}"]`); if (b) b.focus(); avisoLista('#dlista'); },
+  oVer: t => { if (PG !== 'catalogo') { ttsFechar(); enviarPos(); LV = null; } F.id = t.dataset.id; PG = 'catalogo'; render(); focoTela(); },
+  oVoltar: () => { const id = F.id; F.id = ''; render(); focoVolta('obra-' + id); },
+  dVer: t => { const id = t.dataset.id, ir = () => { FD.id = id; PG = 'virtual'; LV = null; render(); focoTela(); }; if (DG) ir(); else run(async () => { DG = await api('leitor.digitais', { token: token() }, 'Carregando os livros digitais…'); ir(); }); },
+  dVoltar: () => { const id = FD.id; FD.id = ''; render(); focoVolta('dig-' + id); },
   lvZoom: t => { if (!LV) return; LV.zoom = Math.min(2.5, Math.max(0.6, +(LV.zoom + 0.25 * +t.dataset.d).toFixed(2))); if (LV.modo === 'rolagem') render(); else desenharPagina(); },
   lvModo: () => { if (!LV) return; LV.modo = LV.modo === 'rolagem' ? 'pagina' : 'rolagem'; try { localStorage.setItem('bibModo', LV.modo); } catch (e) { } render(); },
   atualizar: () => run(async () => { await carregar(); if (C) C = await api('leitor.cantigas', { token: token() }, 'Atualizando…'); if (DG) DG = await api('leitor.digitais', { token: token() }, 'Atualizando…'); render(); }),
   fechar: (t, e) => { if (e.target === t || t.tagName === 'BUTTON') modal(''); },
-  rolar: t => { const d = $('#dest'); if (d) d.scrollBy({ left: +t.dataset.d * 290, behavior: 'smooth' }); },
-  verObra: t => { const o = D.obras.find(x => x.id === t.dataset.id); F.q = o ? o.titulo : ''; F.g = ''; irPara('catalogo'); },
+  rolar: t => { const d = $('#dest'); if (d) d.scrollBy({ left: +t.dataset.d * 290, behavior: SUAVE() }); },
+  verObra: t => { MENU = false; ACT.oVer(t); },
   verCantiga: t => { const id = t.dataset.id; if (C) { FC.id = id; PG = 'cantigas'; render(); return; } run(async () => { C = await api('leitor.cantigas', { token: token() }, 'Carregando a cantiga…'); FC.id = id; PG = 'cantigas'; render(); window.scrollTo(0, 0); }); },
   pedir: t => { const o = D.obras.find(x => x.id === t.dataset.id); modal(`<h2>Pedir retirada</h2><p><b>${esc(o.titulo)}</b><br><span class="muted">${esc(o.autor)}</span></p>
       <p class="small">O livro fica separado para você por ${D.config.diasSolicitacao} ${D.config.diasSolicitacao === 1 ? 'dia' : 'dias'}. A biblioteca confirma o pedido e você recebe o protocolo para assinar (pode ser pelo gov.br). Prazo de devolução: ${D.config.prazo} dias após a retirada.</p>
@@ -383,7 +575,7 @@ const ACT = {
   cSec: t => { FC.sec = t.dataset.id; FC.id = ''; render(); },
   cAbrir: (t, e) => { e.stopPropagation(); FC.id = t.dataset.id; FC.modo = t.dataset.modo; render(); window.scrollTo(0, 0); const c = C.cantigas.find(x => x.id === FC.id); if (FC.modo === 'ouvir' && c && c.audio) run(() => ouvirAudio(c.id)); },
   cVer: t => { FC.id = t.dataset.id; FC.modo = ''; render(); window.scrollTo(0, 0); },
-  cVoltar: () => { FC.id = ''; render(); },
+  cVoltar: () => { const id = FC.id; FC.id = ''; render(); focoVolta('cant-' + id); },
   cOuvir: t => run(() => ouvirAudio(t.dataset.id)),
 };
 const FORMS = {
@@ -408,14 +600,25 @@ document.addEventListener('click', e => { const t = e.target.closest('[data-act]
 document.addEventListener('submit', e => { const f = e.target.closest('[data-form]'); if (f) { e.preventDefault(); FORMS[f.dataset.form](); } });
 document.addEventListener('input', e => {
   if (e.target.matches('[data-cpf]')) { const p = e.target.selectionStart === e.target.value.length; e.target.value = fmtCPF(e.target.value); if (p) e.target.selectionStart = e.target.selectionEnd = e.target.value.length; }
-  if (e.target.dataset.in === 'q') { F.q = e.target.value; $('#lista').innerHTML = listaObras(); }
+  if (e.target.dataset.in === 'q') { F.q = e.target.value; $('#lista').innerHTML = listaObras(); avisoLista('#lista'); }
   if (e.target.dataset.in === 'cq') { FC.q = e.target.value; $('#clista').innerHTML = listaCantigas(); }
-  if (e.target.dataset.in === 'dq') { FD.q = e.target.value; $('#dlista').innerHTML = listaDigitais(); }
+  if (e.target.dataset.in === 'dq') { FD.q = e.target.value; $('#dlista').innerHTML = listaDigitais(); avisoLista('#dlista'); }
 });
-document.addEventListener('change', e => { const k = e.target.dataset.ch; if (k === 'dg') { FD.g = e.target.value; $('#dlista').innerHTML = listaDigitais(); } if (e.target.id === 'lv-ir') irPag(parseInt(e.target.value, 10) || 1); if (k === 'g') { F.g = e.target.value; $('#lista').innerHTML = listaObras(); } if (k === 'ctoq') { FC.toq = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'cori') { FC.ori = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'cmid') { FC.mid = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'ccasa') { FC.casa = e.target.checked; $('#clista').innerHTML = listaCantigas(); } });
+document.addEventListener('change', e => { const k = e.target.dataset.ch;
+  if (k === 'odisp' || k === 'oord') { F[k === 'odisp' ? 'disp' : 'ord'] = e.target.value; $('#lista').innerHTML = listaObras(); avisoLista('#lista'); }
+  if (k === 'dord' || k === 'dcom') { if (k === 'dord') FD.ord = e.target.value; else FD.comecei = e.target.checked; $('#dlista').innerHTML = listaDigitais(); avisoLista('#dlista'); }
+  if (k === 'ttsVel') { TTS.rate = +e.target.value || 1; ls.set('bibVel', TTS.rate); if (TTS.lendo) { TTS.gen++; speechSynthesis.cancel(); ttsFalar(TTS.gen); } }
+  if (k === 'ttsVoz') { TTS.voz = e.target.value; ls.set('bibVoz', TTS.voz); if (TTS.lendo) { TTS.gen++; speechSynthesis.cancel(); ttsFalar(TTS.gen); } } if (e.target.id === 'lv-ir') irPag(parseInt(e.target.value, 10) || 1); if (k === 'g') { F.g = e.target.value; $('#lista').innerHTML = listaObras(); } if (k === 'ctoq') { FC.toq = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'cori') { FC.ori = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'cmid') { FC.mid = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'ccasa') { FC.casa = e.target.checked; $('#clista').innerHTML = listaCantigas(); } });
 if (token()) run(carregar).then(() => { if (!D) { V = 'entrar'; render(); } }); else render();
 // versão 1.7: leitor de PDF — setas do teclado mudam a página; sem menu do botão direito; redesenha ao girar o celular
 document.addEventListener('keydown', e => { if (!LV || !LV.pdf || LV.modo === 'rolagem' || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return; if (e.key === 'ArrowRight') irPag(LV.pag + 1); if (e.key === 'ArrowLeft') irPag(LV.pag - 1); });
-document.addEventListener('keydown', e => { const c = e.target.closest && e.target.closest('.cant-card'); if (c && e.target === c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); ACT.cVer(c); } });
+// Esc fecha a janela ou a tela aberta (do mais recente para o mais antigo)
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || V !== 'app') return;
+  if ($('#modal-root').innerHTML) { modal(''); return; }
+  if (MENU) { MENU = false; render(); const b = $('[data-act=menu]'); if (b) b.focus(); return; }
+  if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) && e.target.value && e.target.type === 'search') return;
+  if (PG === 'virtual' && LV) ACT.lvFechar(); else if (PG === 'virtual' && FD.id) ACT.dVoltar(); else if (PG === 'catalogo' && F.id) ACT.oVoltar(); else if (PG === 'cantigas' && FC.id) ACT.cVoltar();
+});
 document.addEventListener('contextmenu', e => { if (e.target.closest('.lv-folha')) e.preventDefault(); });
 let lvTimer, lvLarg = innerWidth; window.addEventListener('resize', () => { clearTimeout(lvTimer); lvTimer = setTimeout(() => { if (innerWidth === lvLarg) return; lvLarg = innerWidth; if (LV && LV.pdf) { if (LV.modo === 'rolagem') render(); else desenharPagina(); } }, 250); }); // só quando a largura muda (no celular a barra do navegador muda a altura ao rolar)
