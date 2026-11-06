@@ -556,9 +556,9 @@ VIEWS.inicio = {
         ${loanRows(recent, { compact: true })}</section>
     </div>
     ${(S.digitais || []).length ? (() => { // versão 1.10.1: resumo da Biblioteca Virtual no Início
-      const ativos = S.digitais.filter(d => d.ativo).length, lt = Object.values(S.leiturasDig || {}).reduce((a, b) => a + b, 0), ult = [...S.digitais].sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm))).slice(0, 5);
+      const pend = S.digitais.filter(d => d.ativo && d.autorizacao === 'pendente').length, ativos = S.digitais.filter(d => d.ativo).length - pend, lt = Object.values(S.leiturasDig || {}).reduce((a, b) => a + b, 0), ult = [...S.digitais].sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm))).slice(0, 5);
       return `<section class="panel" style="margin-top:16px"><div class="panel-head"><h2>Biblioteca Virtual</h2><button class="btn sm ghost" data-act="go" data-v="virtual">Ver todos</button></div>
-        <div class="kpis">${kpi('Livros digitais', ativos, S.digitais.length > ativos ? `${S.digitais.length - ativos} desativado(s)` : 'todos no portal')}${kpi('Leituras no mês', S.leiturasDigMes || 0, 'livros abertos no portal')}${kpi('Leituras no total', lt, 'desde o início')}</div>
+        <div class="kpis">${kpi('Livros no portal', ativos, pend ? `${pend} aguardando autorização` : 'todos liberados', pend ? 'warn' : '')}${kpi('Leituras no mês', S.leiturasDigMes || 0, 'livros abertos no portal')}${kpi('Leituras no total', lt, 'desde o início')}</div>
         <h3 class="small muted" style="margin:14px 0 6px">Últimos cadastrados</h3><div class="dig-ult">${ult.map(d => `<button class="dig-ult-i" data-act="digEditar" data-id="${d.id}"><span class="dig-capa">${d.capa ? `<img src="${esc(d.capa)}" alt="">` : ic('tablet')}</span><span><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || 'Autor não informado')} · ${d.ativo ? '' : 'desativado · '}${plural((S.leiturasDig || {})[d.id] || 0, 'leitura', 'leituras')}</span></span></button>`).join('')}</div></section>`; })() : ''}`;
   }
 };
@@ -2327,7 +2327,7 @@ Object.assign(CHG, {
 INP.cantQ = el => { P.q = el.value; $('#cant-res').innerHTML = cantLista(); };
 
 /* ---- versão 1.7: biblioteca virtual (PDF lido só na tela, pelo portal do leitor) ---- */
-const AUTORIZ = { dominio: 'Domínio público', propria: 'Publicação própria da casa', autorizado: 'Autorizado pelo autor ou editora' };
+const AUTORIZ = { dominio: 'Domínio público', propria: 'Publicação própria da casa', autorizado: 'Autorizado pelo autor ou editora', pendente: 'Aguardando autorização (não aparece no portal)' };
 const MB = n => n < 1048576 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' MB';
 function digLista() {
   const q = norm(P.q || ''), l = (S.digitais || []).filter(d => (P.inat || d.ativo) && (!q || norm(`${d.titulo} ${d.autor}`).includes(q))).sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'));
@@ -2394,7 +2394,7 @@ Object.assign(CHG, {
   digInat(el) { P.inat = el.checked ? '1' : ''; $('#dig-res').innerHTML = digLista(); },
   digAutz(el) { $('#dg-obs-f').hidden = el.value !== 'autorizado'; },
   digCapa(el) { const f = el.files[0]; if (!f) return; run(async () => { UI.dig.capa = await capaReduzida(f); $('#dg-capa-prev').innerHTML = `<img src="${UI.dig.capa}" alt="">`; }); },
-  digPdf(el) { const f = el.files[0]; if (!f) return; if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') { toast('Escolha um arquivo PDF.', 'bad'); return; } if (f.size > 20 * 1024 * 1024) { toast(`PDF com ${MB(f.size)}: o limite é 20 MB. Comprima o arquivo (ex.: ilovepdf.com → Comprimir PDF) e tente de novo.`, 'bad'); el.value = ''; return; } UI.dig.pdf = f; $('#dg-pdf-nome').textContent = `${f.name} (${MB(f.size)})`; lerPdfCadastro(f).catch(e => { const n = $('#dg-auto'); if (n) n.innerHTML = `<div class="note warn"><span>Não consegui ler o PDF para preencher (${esc(e.message || 'erro')}). Preencha à mão; o envio funciona do mesmo jeito.</span></div>`; }); },
+  digPdf(el) { const f = el.files[0]; if (!f) return; if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') { toast('Escolha um arquivo PDF.', 'bad'); return; } if (f.size > 25 * 1024 * 1024) { toast(`PDF com ${MB(f.size)}: o limite é 25 MB. Comprima o arquivo (ex.: ilovepdf.com → Comprimir PDF) e tente de novo.`, 'bad'); el.value = ''; return; } UI.dig.pdf = f; $('#dg-pdf-nome').textContent = `${f.name} (${MB(f.size)})`; lerPdfCadastro(f).catch(e => { const n = $('#dg-auto'); if (n) n.innerHTML = `<div class="note warn"><span>Não consegui ler o PDF para preencher (${esc(e.message || 'erro')}). Preencha à mão; o envio funciona do mesmo jeito.</span></div>`; }); },
 });
 INP.digQ = el => { P.q = el.value; $('#dig-res').innerHTML = digLista(); };
 
@@ -2573,7 +2573,7 @@ function linhaLote(r, i) {
     <td><input class="lote-in" data-in="loteTit" data-i="${i}" value="${esc(r.titulo)}" aria-label="Título"><span class="small muted">${esc(r.arquivo)} · ${MB(r.tamanho)}${r.isbn ? ' · ISBN ' + r.isbn : ''}</span></td>
     <td><input class="lote-in" data-in="loteAut" data-i="${i}" value="${esc(r.autor)}" aria-label="Autor"></td>
     <td><select data-ch="loteGen" data-i="${i}" aria-label="Gênero"><option value="">—</option>${gens.map(g => `<option value="${g.sigla}" ${r.genero === g.sigla ? 'selected' : ''}>${esc(g.nome)}</option>`).join('')}</select></td>
-    <td><select data-ch="loteAutz" data-i="${i}" aria-label="Autorização"><option value="">Escolha…</option>${['dominio', 'propria'].map(k => `<option value="${k}" ${r.autorizacao === k ? 'selected' : ''}>${AUTORIZ[k]}</option>`).join('')}</select></td>
+    <td><select data-ch="loteAutz" data-i="${i}" aria-label="Autorização"><option value="">Escolha…</option>${['dominio', 'propria', 'autorizado', 'pendente'].map(k => `<option value="${k}" ${r.autorizacao === k ? 'selected' : ''}>${AUTORIZ[k]}</option>`).join('')}</select></td>
     <td><label class="check small"><input type="checkbox" data-ch="loteAssoc" data-i="${i}" ${r.soAssociados ? 'checked' : ''}> Só associados</label></td>
     <td class="small" id="lote-st-${i}">${r.status}</td></tr>`;
 }
@@ -2586,7 +2586,7 @@ async function lerLote(files) {
     if (UI.lote !== L) return;
     const r = { arquivo: f.name, tamanho: f.size, file: f, titulo: nomeArquivo(f), autor: '', ano: '', genero: '', isbn: '', capa: '', obraId: '', autorizacao: L.autz, soAssociados: L.assoc, marcado: true, estado: '', status: '' };
     if (!/\.pdf$/i.test(f.name)) { r.bloqueio = true; r.marcado = false; r.status = 'Não é PDF'; }
-    else if (f.size > 20 * 1024 * 1024) { r.bloqueio = true; r.marcado = false; r.status = `Acima de 20 MB: comprima e envie depois`; }
+    else if (f.size > 25 * 1024 * 1024) { r.bloqueio = true; r.marcado = false; r.status = `Acima de 25 MB: comprima e envie depois`; }
     else {
       let texto = '';
       try {
@@ -2615,7 +2615,7 @@ Object.assign(ACT, {
       <p class="small">Escolha os arquivos (pode selecionar todos de uma pasta). O sistema lê cada PDF neste computador: título, autor, ISBN, capa da 1ª página e um gênero sugerido por palavras-chave. Confira a tabela e envie.</p>
       <div class="note warn"><span><b>Só publique o que pode ser publicado:</b> domínio público (autor falecido há mais de 70 anos), publicação própria da casa ou com autorização por escrito. Confira a autorização de cada livro antes de enviar.</span></div>
       <div class="inline wrap" style="margin:10px 0"><label class="btn primary">${ic('plus')} Escolher PDFs<input type="file" accept="application/pdf,.pdf" multiple hidden data-ch="loteArq"></label>
-        <label class="small">Autorização para os novos <select data-ch="loteAutzPad"><option value="dominio" selected>${AUTORIZ.dominio}</option><option value="propria">${AUTORIZ.propria}</option><option value="">Escolher em cada um</option></select></label>
+        <label class="small">Autorização para os novos <select data-ch="loteAutzPad"><option value="dominio" selected>${AUTORIZ.dominio}</option><option value="propria">${AUTORIZ.propria}</option><option value="pendente">${AUTORIZ.pendente}</option><option value="">Escolher em cada um</option></select></label>
         <label class="check small"><input type="checkbox" data-ch="loteAssocPad"> Só associados (novos)</label></div>
       <p class="small muted" id="lote-res">Nenhum arquivo escolhido.</p>
       <div class="lote-wrap"><table class="lote"><thead><tr><th><span class="sr">Enviar</span></th><th>Capa</th><th>Título</th><th>Autor</th><th>Gênero</th><th>Autorização</th><th></th><th>Situação</th></tr></thead><tbody id="lote-tb"></tbody></table></div>
@@ -2631,7 +2631,7 @@ Object.assign(ACT, {
       for (const [r, i] of fila) {
         if (UI.lote !== L) break; const st = $(`#lote-st-${i}`), n = `Livro ${feitos + erros + 1} de ${fila.length}`;
         try {
-          const res = await api('dig.salvar', { titulo: r.titulo.trim(), autor: r.autor.trim(), ano: r.ano, genero: r.genero, obraId: r.obraId, descricao: '', autorizacao: r.autorizacao, autorizacaoObs: '', soAssociados: r.soAssociados, capa: r.capa, ativo: true }, { msg: `${n}: salvando…` });
+          const res = await api('dig.salvar', { titulo: r.titulo.trim(), autor: r.autor.trim(), ano: r.ano, genero: r.genero, obraId: r.obraId, autorizacao: r.autorizacao, autorizacaoObs: r.obs || '', descricao: r.descricao || '', soAssociados: r.soAssociados, capa: r.capa, ativo: true }, { msg: `${n}: salvando…` });
           const PARTE = 3 * 1024 * 1024, total = Math.ceil(r.file.size / PARTE), envio = 'up' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
           for (let k = 0; k < total; k++) await api('dig.upload', { id: res.id, envio, parte: k, total, dados: await blobB64(r.file.slice(k * PARTE, (k + 1) * PARTE)) }, { msg: `${n}: enviando o PDF${total > 1 ? ` (parte ${k + 1} de ${total})` : ''}…` });
           r.estado = 'ok'; r.status = 'Enviado'; r.file = null; feitos++;
