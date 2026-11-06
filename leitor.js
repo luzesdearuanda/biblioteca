@@ -11,7 +11,7 @@ const fmtCPF = v => { const d = String(v || '').replace(/\D/g, '').slice(0, 11);
 const hoje = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const ls = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) { } } };
 let V = 'entrar', PG = 'inicio', D = null, C = null, CPF = '', MENU = false;
-const F = { q: '', g: '' }, FC = { q: '', sec: '', toq: '', casa: false, id: '' };
+const F = { q: '', g: '' }, FC = { q: '', sec: '', toq: '', casa: false, id: '', ori: '', mid: '', modo: '' };
 const LOGO = 'logo.png';
 
 /* ---------- ícones e ilustrações (SVG) ---------- */
@@ -28,6 +28,8 @@ const IC = {
   arrow: sv('<path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>'),
   left: sv('<path d="M15 6l-6 6 6 6"/>', 2.2), right: sv('<path d="M9 6l6 6-6 6"/>', 2.2),
   pagina: sv('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>'), rolar: sv('<rect x="6" y="2" width="12" height="8" rx="1.5"/><rect x="6" y="14" width="12" height="8" rx="1.5"/><path d="M3 9v6M2 13.5l1 1.5 1-1.5"/>'),
+  play: sv('<path d="M7 4.5v15l12-7.5z"/>', 2), fone: sv('<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="6" rx="1.5"/><rect x="16.5" y="14" width="4.5" height="6" rx="1.5"/>'),
+  letra: sv('<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 15.5h6M9 9h2"/>'), filtro: sv('<path d="M4 5h16l-6 7.5V19l-4-2v-4.5z"/>'), camadas: sv('<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>'),
   menu: sv('<path d="M4 7h16M4 12h16M4 17h16"/>'), search: sv('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
 };
 const ART = {
@@ -264,34 +266,80 @@ const FAQ = [
 const ajuda = () => `${cabecalho('Ajuda', 'Dúvidas mais comuns sobre o portal da biblioteca.')}<section class="lp-panel lp-faq">${FAQ.map(([q, a]) => `<details><summary>${q}</summary><p>${a}</p></details>`).join('')}</section>
   <section class="lp-panel"><h2>Ainda com dúvida?</h2><p class="muted">Fale com a biblioteca pelo WhatsApp.</p><a class="lp-btn green" href="https://wa.me/${WHATS}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre o portal da Biblioteca Luzes de Aruanda.')}" target="_blank" rel="noopener">Conversar no WhatsApp ${IC.arrow}</a></section>`;
 
-/* ---------- cantigas (só associados) ---------- */
+/* ---------- cantigas (só associados) — versão 1.8: painel de seções, filtros, cards com Assistir/Ouvir/Ler letra e tela completa ---------- */
 const ORIG = { tradicional: 'Tradicional', autor: 'Autoria conhecida', casa: 'Da casa' };
+const ICONES_SEC = {
+  estrela: '<path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6L3.3 9.2l6.1-.6z"/>',
+  pessoas: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.6-3.4 3-5.5 6-5.5s5.4 2.1 6 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.6c2.6.1 4.6 2 5 5.4"/>',
+  lotus: '<path d="M12 19c-4-1.5-6-5-6-9 3 1 5 3.5 6 9zM12 19c4-1.5 6-5 6-9-3 1-5 3.5-6 9zM12 19c-1.5-3-1.5-8 0-13 1.5 5 1.5 10 0 13z"/><path d="M3 19h18"/>',
+  chapeu: '<path d="M7 15c0-4 1.5-8 5-8s5 4 5 8"/><path d="M2.5 15.5c3 2.2 16 2.2 19 0-3.5-1-15.5-1-19 0z"/>',
+  livro: '<path d="M3 5.5C5.5 4 8.5 4 12 6c3.5-2 6.5-2 9-.5V19c-2.5-1.5-5.5-1.5-9 .5-3.5-2-6.5-2-9-.5z"/><path d="M12 6v13.5"/>',
+  nota: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+  tambor: '<ellipse cx="12" cy="6" rx="6" ry="2.5"/><path d="M6 6l1.5 13h9L18 6"/><path d="M8 9.5l4 3 4-3"/>',
+  vela: '<path d="M12 3c1.5 2 1.5 3.5 0 5-1.5-1.5-1.5-3 0-5z"/><rect x="9" y="9" width="6" height="11" rx="1"/>',
+  folha: '<path d="M5 19C5 10 10 5 20 4c-1 10-6 15-15 15z"/><path d="M5 19l8-8"/>',
+  onda: '<path d="M2 11c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5-1"/><path d="M2 17c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5-1"/>',
+  raio: '<path d="M13 2L5 13h6l-1 9 8-11h-6z"/>',
+  coracao: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+  espada: '<path d="M14.5 3H20v5.5L10 18.5 5.5 14z"/><path d="M7 16l-3.5 3.5M5 13l6 6"/>',
+  flecha: '<path d="M4 20L19 5"/><path d="M13 4h7v7"/><path d="M4 20l1.5-5 3.5 3.5z"/>',
+};
+function iconeSec(x) {
+  if (x.icone && ICONES_SEC[x.icone]) return sv(ICONES_SEC[x.icone]);
+  const n = norm(x.nome), r = [[/defuma/, 'vela'], [/bater|cabeca/, 'tambor'], [/oxum|ibejada|cosme/, 'coracao'], [/iemanja|marinheiro/, 'onda'], [/iansa|xango/, 'raio'], [/ogum/, 'espada'], [/oxossi|caboclo|jurema/, 'flecha'], [/boiadeiro|baiano/, 'chapeu'], [/preto velho|pretos velhos|linha/, 'pessoas'], [/oxala|abertura|encerramento|gira/, 'estrela'], [/orixa/, 'lotus'], [/doutrina|hino/, 'livro'], [/mata|folha|erva/, 'folha']];
+  return sv(ICONES_SEC[(r.find(([re]) => re.test(n)) || [0, 'nota'])[1]]);
+}
 const cSecNome = id => { const x = C.secoes.find(y => y.id === id); if (!x) return ''; const p = x.paiId && C.secoes.find(y => y.id === x.paiId); return p ? `${p.nome} › ${x.nome}` : x.nome; };
+const cSecCurto = id => (C.secoes.find(y => y.id === id) || {}).nome || '';
 const cToq = id => (C.toques.find(t => t.id === id) || {}).nome || '';
 const naSecao = (c, sec) => !sec || c.secoes.some(id => id === sec || (C.secoes.find(x => x.id === id) || {}).paiId === sec);
+const cMidia = c => c.youtube && c.audio ? 'Vídeo e áudio' : c.youtube ? 'Vídeo' : c.audio ? 'Áudio' : 'Letra';
+const MIDIA = { video: ['Com vídeo', c => !!c.youtube], audio: ['Com áudio', c => !!c.audio], letra: ['Só letra', c => !c.youtube && !c.audio] };
+const cFiltradas = () => { const q = norm(FC.q); return C.cantigas.filter(c => naSecao(c, FC.sec) && (!FC.toq || c.toqueId === FC.toq) && (!FC.ori || c.origem === FC.ori) && (!FC.casa || c.origem === 'casa') && (!FC.mid || MIDIA[FC.mid][1](c)) && (!q || norm(c.titulo + ' ' + c.letra).includes(q))).sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR')); };
+const cThumb = c => c.youtube ? `<img src="https://i.ytimg.com/vi/${c.youtube}/mqdefault.jpg" alt="" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(ART.notes))">` : ART.notes;
+const cBotoes = c => `${c.youtube ? `<button class="lp-btn ct-b" data-act="cAbrir" data-id="${c.id}" data-modo="assistir">${IC.play}<span>Assistir</span></button>` : ''}${c.audio || c.youtube ? `<button class="lp-btn light ct-b" data-act="cAbrir" data-id="${c.id}" data-modo="ouvir">${IC.fone}<span>Ouvir</span></button>` : ''}${c.letra ? `<button class="lp-btn light ct-b" data-act="cAbrir" data-id="${c.id}" data-modo="letra">${IC.letra}<span>Ler letra</span></button>` : ''}`;
 function listaCantigas() {
-  const q = norm(FC.q), l = C.cantigas.filter(c => naSecao(c, FC.sec) && (!FC.toq || c.toqueId === FC.toq) && (!FC.casa || c.origem === 'casa') && (!q || norm(c.titulo + ' ' + c.letra).includes(q))).sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'));
-  if (!l.length) return '<div class="table-wrap"><div class="empty">Nenhuma cantiga encontrada.</div></div>';
-  return `<p class="small muted">${l.length} ${l.length === 1 ? 'cantiga' : 'cantigas'}</p>` + l.map(c => `<button class="cant-card" data-act="cVer" data-id="${c.id}"><b>${esc(c.titulo)}</b>${c.origem === 'casa' ? ' <span class="pill ok">Da casa</span>' : ''}<span class="small muted">${c.secoes.map(id => esc(cSecNome(id))).join(' · ')}${c.toqueId ? ' · ' + esc(cToq(c.toqueId)) : ''}${c.youtube ? ' · vídeo' : ''}${c.audio ? ' · áudio' : ''}</span></button>`).join('');
+  const l = cFiltradas(), sec = FC.sec && C.secoes.find(x => x.id === FC.sec);
+  const cont = `<p class="small muted ct-cont">${l.length} ${l.length === 1 ? 'cantiga encontrada' : 'cantigas encontradas'}${sec ? ` em “${esc(sec.nome)}”` : ''}</p>`;
+  if (!l.length) return cont + '<div class="lp-panel"><p class="muted" style="margin:0">Nenhuma cantiga encontrada. Tente outra seção ou limpe os filtros.</p></div>';
+  return cont + l.map(c => { const v1 = (c.letra || '').split('\n').find(x => x.trim()) || ''; return `<div class="cant-card" data-act="cVer" data-id="${c.id}" role="button" tabindex="0">
+    <span class="ct-th">${cThumb(c)}${c.youtube ? `<span class="ct-play">${IC.play}</span>` : ''}</span>
+    <span class="ct-tx"><b>${esc(c.titulo)}</b>${v1 ? `<i>${esc(v1)}</i>` : ''}<span class="ct-meta">${c.secoes[0] ? `<span>${esc(cSecCurto(c.secoes[0]))}</span>` : ''}${c.toqueId ? `<span>${esc(cToq(c.toqueId))}</span>` : ''}<span>${cMidia(c)}</span>${c.origem === 'casa' ? '<span class="lp-tag c">Da casa</span>' : ''}</span></span>
+    <span class="ct-bts">${cBotoes(c)}</span></div>`; }).join('');
+}
+function cantigaTela(c) {
+  const modo = FC.modo, ouvirYt = modo === 'ouvir' && !c.audio && c.youtube;
+  const yt = c.youtube && modo !== 'ouvir' ? `<div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${c.youtube}${modo === 'assistir' ? '?autoplay=1' : ''}" title="Vídeo da cantiga" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`
+    : ouvirYt ? `<div class="ct-ouvir-yt"><div class="yt-mini"><iframe src="https://www.youtube-nocookie.com/embed/${c.youtube}?autoplay=1" title="Vídeo da cantiga" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin"></iframe></div><p class="small muted">Esta cantiga ainda não tem áudio salvo, então ela toca pelo vídeo do YouTube em tamanho pequeno. O YouTube não permite tocar só o áudio nem continuar com a tela apagada.</p></div>` : '';
+  const audio = c.audio ? `<div class="ct-audio">${modo === 'ouvir' ? '' : `<button class="lp-btn purple" data-act="cOuvir" data-id="${c.id}">${IC.fone} Ouvir só o áudio</button>`}<div id="c-play"></div></div>` : '';
+  return `<button class="btn sm ghost" data-act="cVoltar">← Voltar às cantigas</button>
+    <div class="ct-det"><div class="ct-midia">${yt}${audio}${!yt && !audio && !ouvirYt ? `<div class="lp-panel ct-semmidia">${ART.drum}<p class="muted">Esta cantiga tem só a letra.</p></div>` : ''}
+      ${c.youtube && modo === 'ouvir' ? `<div class="ct-bts ct-bts-det"><button class="lp-btn ct-b" data-act="cAbrir" data-id="${c.id}" data-modo="assistir">${IC.play}<span>Assistir o vídeo</span></button></div>` : ''}
+      <dl class="ct-info">${c.secoes.length ? `<dt>Seções</dt><dd>${c.secoes.map(id => esc(cSecNome(id))).join(' · ')}</dd>` : ''}${c.toqueId ? `<dt>Toque</dt><dd>${esc(cToq(c.toqueId))}</dd>` : ''}<dt>Origem</dt><dd>${ORIG[c.origem] || '—'}${c.autor ? ': ' + esc(c.autor) : ''}</dd>${c.obs ? `<dt>Observações</dt><dd>${esc(c.obs)}</dd>` : ''}</dl></div>
+      <div class="ct-letra" id="ct-letra"><h1>${esc(c.titulo)}</h1><pre class="letra">${esc(c.letra || 'Letra ainda não cadastrada.')}</pre>${c.youtube ? `<p class="small"><a href="https://www.youtube.com/watch?v=${c.youtube}" target="_blank" rel="noopener">Abrir no YouTube</a></p>` : ''}</div></div>`;
 }
 function cantigas() {
   if (!C) return cabecalho('Cantigas') + '<p class="muted">Carregando…</p>';
-  if (FC.id) {
-    const c = C.cantigas.find(x => x.id === FC.id); if (!c) { FC.id = ''; return cantigas(); }
-    return `<button class="btn sm ghost" data-act="cVoltar">← Voltar às cantigas</button><div class="lp-head" style="margin-top:10px"><div><h1>${esc(c.titulo)}</h1>
-      <p>${c.secoes.map(id => esc(cSecNome(id))).join(' · ')}${c.toqueId ? ' · toque <b>' + esc(cToq(c.toqueId)) + '</b>' : ''} · ${ORIG[c.origem] || ''}${c.autor ? ': ' + esc(c.autor) : ''}</p></div></div>
-      ${c.youtube ? `<div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${c.youtube}" title="Vídeo da cantiga" loading="lazy" allow="encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div><p class="small"><a href="https://www.youtube.com/watch?v=${c.youtube}" target="_blank" rel="noopener">Abrir no YouTube</a></p>` : ''}
-      ${c.audio ? `<button class="lp-btn purple" data-act="cOuvir" data-id="${c.id}">▶ Ouvir áudio</button><div id="c-play" style="margin-top:8px"></div>` : ''}
-      <pre class="letra">${esc(c.letra || 'Letra ainda não cadastrada.')}</pre>${c.obs ? `<p class="small muted">${esc(c.obs)}</p>` : ''}`;
-  }
-  const pais = C.secoes.filter(x => !x.paiId).sort((a, b) => a.ordem - b.ordem), secAtual = C.secoes.find(y => y.id === FC.sec) || {}, paiSel = secAtual.paiId || FC.sec, subs = paiSel ? C.secoes.filter(x => x.paiId === paiSel) : [];
+  if (FC.id) { const c = C.cantigas.find(x => x.id === FC.id); if (c) return cantigaTela(c); FC.id = ''; }
+  const pais = C.secoes.filter(x => !x.paiId).sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, 'pt-BR')), secAtual = C.secoes.find(y => y.id === FC.sec) || {}, paiSel = secAtual.paiId || FC.sec;
+  const subsDe = id => C.secoes.filter(x => x.paiId === id).sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, 'pt-BR'));
+  const item = (x, sub) => `<button type="button" class="ct-sec${sub ? ' sub' : ''}" data-act="cSec" data-id="${x.id}" aria-pressed="${FC.sec === x.id || (!sub && paiSel === x.id)}">${sub ? '' : iconeSec(x)}<span>${esc(x.nome)}</span>${!sub && subsDe(x.id).length ? `<span class="chv${paiSel === x.id ? ' aberto' : ''}">${IC.right}</span>` : ''}</button>`;
+  const sel = (k, rot, ops) => `<select data-ch="${k}" aria-label="${rot}"><option value="">${rot} (todos)</option>${ops}</select>`;
   return `${cabecalho('Cantigas', 'Assista, ouça e leia as cantigas da casa.')}
-    <div class="seg" role="group" aria-label="Seções" style="margin-bottom:8px">${pais.map(p => `<button type="button" data-act="cSec" data-id="${p.id}" aria-pressed="${paiSel === p.id}">${esc(p.nome)}</button>`).join('')}</div>
-    ${subs.length ? `<div class="seg" role="group" aria-label="Subseções" style="margin-bottom:8px">${subs.map(p => `<button type="button" data-act="cSec" data-id="${p.id}" aria-pressed="${FC.sec === p.id}">› ${esc(p.nome)}</button>`).join('')}</div>` : ''}
-    <div class="toolbar"><label class="search" style="flex:1 1 200px"><span class="sr">Buscar</span>${IC.search}<input data-in="cq" value="${esc(FC.q)}" placeholder="Título ou trecho da letra" autocomplete="off"></label>
-      <select data-ch="ctoq" aria-label="Toque"><option value="">Todos os toques</option>${C.toques.map(t => `<option value="${t.id}" ${FC.toq === t.id ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select>
-      <label class="check small"><input type="checkbox" data-ch="ccasa" ${FC.casa ? 'checked' : ''}> Só da casa</label></div>
-    <div id="clista" class="cant-lista">${listaCantigas()}</div>`;
+    <div class="ct-grade"><nav class="ct-secoes" aria-label="Seções"><div class="ct-sec-tit">${IC.camadas}<b>Seções</b></div>
+      <button type="button" class="ct-sec" data-act="cSec" data-id="" aria-pressed="${!FC.sec}">${sv(ICONES_SEC.nota)}<span>Todas as cantigas</span></button>
+      ${pais.map(p => item(p) + (paiSel === p.id ? `<div class="ct-subs">${subsDe(p.id).map(s => item(s, true)).join('')}</div>` : '')).join('')}</nav>
+    <div class="ct-conteudo"><div class="ct-filtros"><span class="ct-ftit">${IC.filtro}<b>Filtros:</b></span>
+        ${sel('ctoq', 'Toque', C.toques.map(t => `<option value="${t.id}" ${FC.toq === t.id ? 'selected' : ''}>${esc(t.nome)}</option>`).join(''))}
+        ${sel('cori', 'Origem', Object.keys(ORIG).map(k => `<option value="${k}" ${FC.ori === k ? 'selected' : ''}>${ORIG[k]}</option>`).join(''))}
+        ${sel('cmid', 'Mídia', Object.keys(MIDIA).map(k => `<option value="${k}" ${FC.mid === k ? 'selected' : ''}>${MIDIA[k][0]}</option>`).join(''))}
+        <label class="check small ct-casa"><input type="checkbox" data-ch="ccasa" ${FC.casa ? 'checked' : ''}> Só da casa</label></div>
+      <label class="search ct-busca"><span class="sr">Buscar</span>${IC.search}<input data-in="cq" value="${esc(FC.q)}" placeholder="Buscar cantiga pelo título ou trecho da letra" autocomplete="off"></label>
+      <div id="clista" class="cant-lista">${listaCantigas()}</div></div></div>`;
+}
+async function ouvirAudio(id) {
+  const r = await api('leitor.cantigaAudio', { token: token(), id }, 'Carregando o áudio…'), el = $('#c-play');
+  if (el) el.innerHTML = `<audio controls autoplay src="data:${r.mime};base64,${r.dados}" style="width:100%"></audio><p class="small muted">O áudio continua tocando com a tela apagada.</p>`;
 }
 
 function render() {
@@ -325,10 +373,11 @@ const ACT = {
       <div class="modal-actions"><button class="btn" data-act="fechar">Voltar</button><button class="btn primary" data-act="pedirOk" data-id="${o.id}">Confirmar pedido</button></div>`); },
   pedirOk: t => run(async () => { const r = await api('leitor.solicitar', { token: token(), obraId: t.dataset.id }, 'Enviando pedido…'); modal(''); toast(`Pedido feito! O livro fica separado até ${fmtD(r.expiraEm)}.`); await carregar(); }),
   cancelar: t => run(async () => { await api('leitor.cancelar', { token: token(), id: t.dataset.id }, 'Cancelando…'); toast('Pedido cancelado'); await carregar(); }),
-  cSec: t => { FC.sec = FC.sec === t.dataset.id ? '' : t.dataset.id; FC.id = ''; render(); },
-  cVer: t => { FC.id = t.dataset.id; render(); window.scrollTo(0, 0); },
+  cSec: t => { FC.sec = t.dataset.id; FC.id = ''; render(); },
+  cAbrir: (t, e) => { e.stopPropagation(); FC.id = t.dataset.id; FC.modo = t.dataset.modo; render(); window.scrollTo(0, 0); if (FC.modo === 'letra') { const l = $('#ct-letra'); if (l) l.scrollIntoView({ block: 'start' }); } const c = C.cantigas.find(x => x.id === FC.id); if (FC.modo === 'ouvir' && c && c.audio) run(() => ouvirAudio(c.id)); },
+  cVer: t => { FC.id = t.dataset.id; FC.modo = ''; render(); window.scrollTo(0, 0); },
   cVoltar: () => { FC.id = ''; render(); },
-  cOuvir: t => run(async () => { const r = await api('leitor.cantigaAudio', { token: token(), id: t.dataset.id }, 'Carregando o áudio…'); $('#c-play').innerHTML = `<audio controls autoplay src="data:${r.mime};base64,${r.dados}" style="width:100%"></audio>`; }),
+  cOuvir: t => run(() => ouvirAudio(t.dataset.id)),
 };
 const FORMS = {
   entrar: () => run(async () => { CPF = $('#l-cpf').value; try { const r = await api('leitor.entrar', { cpf: CPF, senha: $('#l-senha').value }, 'Entrando…'); ls.set('bibLeitor', r.token); await carregar(); }
@@ -356,9 +405,10 @@ document.addEventListener('input', e => {
   if (e.target.dataset.in === 'cq') { FC.q = e.target.value; $('#clista').innerHTML = listaCantigas(); }
   if (e.target.dataset.in === 'dq') { FD.q = e.target.value; $('#dlista').innerHTML = listaDigitais(); }
 });
-document.addEventListener('change', e => { const k = e.target.dataset.ch; if (k === 'dg') { FD.g = e.target.value; $('#dlista').innerHTML = listaDigitais(); } if (e.target.id === 'lv-ir') irPag(parseInt(e.target.value, 10) || 1); if (k === 'g') { F.g = e.target.value; $('#lista').innerHTML = listaObras(); } if (k === 'ctoq') { FC.toq = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'ccasa') { FC.casa = e.target.checked; $('#clista').innerHTML = listaCantigas(); } });
+document.addEventListener('change', e => { const k = e.target.dataset.ch; if (k === 'dg') { FD.g = e.target.value; $('#dlista').innerHTML = listaDigitais(); } if (e.target.id === 'lv-ir') irPag(parseInt(e.target.value, 10) || 1); if (k === 'g') { F.g = e.target.value; $('#lista').innerHTML = listaObras(); } if (k === 'ctoq') { FC.toq = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'cori') { FC.ori = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'cmid') { FC.mid = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'ccasa') { FC.casa = e.target.checked; $('#clista').innerHTML = listaCantigas(); } });
 if (token()) run(carregar).then(() => { if (!D) { V = 'entrar'; render(); } }); else render();
 // versão 1.7: leitor de PDF — setas do teclado mudam a página; sem menu do botão direito; redesenha ao girar o celular
 document.addEventListener('keydown', e => { if (!LV || !LV.pdf || LV.modo === 'rolagem' || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return; if (e.key === 'ArrowRight') irPag(LV.pag + 1); if (e.key === 'ArrowLeft') irPag(LV.pag - 1); });
+document.addEventListener('keydown', e => { const c = e.target.closest && e.target.closest('.cant-card'); if (c && e.target === c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); ACT.cVer(c); } });
 document.addEventListener('contextmenu', e => { if (e.target.closest('.lv-folha')) e.preventDefault(); });
 let lvTimer, lvLarg = innerWidth; window.addEventListener('resize', () => { clearTimeout(lvTimer); lvTimer = setTimeout(() => { if (innerWidth === lvLarg) return; lvLarg = innerWidth; if (LV && LV.pdf) { if (LV.modo === 'rolagem') render(); else desenharPagina(); } }, 250); }); // só quando a largura muda (no celular a barra do navegador muda a altura ao rolar)
