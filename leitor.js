@@ -308,15 +308,22 @@ function listaCantigas() {
     <span class="ct-bts">${cBotoes(c)}</span></div>`; }).join('');
 }
 function cantigaTela(c) {
-  const modo = FC.modo, ouvirYt = modo === 'ouvir' && !c.audio && c.youtube;
-  const yt = c.youtube && modo !== 'ouvir' ? `<div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${c.youtube}${modo === 'assistir' ? '?autoplay=1' : ''}" title="Vídeo da cantiga" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`
-    : ouvirYt ? `<div class="ct-ouvir-yt"><div class="yt-mini"><iframe src="https://www.youtube-nocookie.com/embed/${c.youtube}?autoplay=1" title="Vídeo da cantiga" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin"></iframe></div><p class="small muted">Esta cantiga ainda não tem áudio salvo, então ela toca pelo vídeo do YouTube em tamanho pequeno. O YouTube não permite tocar só o áudio nem continuar com a tela apagada.</p></div>` : '';
-  const audio = c.audio ? `<div class="ct-audio">${modo === 'ouvir' ? '' : `<button class="lp-btn purple" data-act="cOuvir" data-id="${c.id}">${IC.fone} Ouvir só o áudio</button>`}<div id="c-play"></div></div>` : '';
-  return `<button class="btn sm ghost" data-act="cVoltar">← Voltar às cantigas</button>
-    <div class="ct-det"><div class="ct-midia">${yt}${audio}${!yt && !audio && !ouvirYt ? `<div class="lp-panel ct-semmidia">${ART.drum}<p class="muted">Esta cantiga tem só a letra.</p></div>` : ''}
-      ${c.youtube && modo === 'ouvir' ? `<div class="ct-bts ct-bts-det"><button class="lp-btn ct-b" data-act="cAbrir" data-id="${c.id}" data-modo="assistir">${IC.play}<span>Assistir o vídeo</span></button></div>` : ''}
-      <dl class="ct-info">${c.secoes.length ? `<dt>Seções</dt><dd>${c.secoes.map(id => esc(cSecNome(id))).join(' · ')}</dd>` : ''}${c.toqueId ? `<dt>Toque</dt><dd>${esc(cToq(c.toqueId))}</dd>` : ''}<dt>Origem</dt><dd>${ORIG[c.origem] || '—'}${c.autor ? ': ' + esc(c.autor) : ''}</dd>${c.obs ? `<dt>Observações</dt><dd>${esc(c.obs)}</dd>` : ''}</dl></div>
-      <div class="ct-letra" id="ct-letra"><h1>${esc(c.titulo)}</h1><pre class="letra">${esc(c.letra || 'Letra ainda não cadastrada.')}</pre>${c.youtube ? `<p class="small"><a href="https://www.youtube.com/watch?v=${c.youtube}" target="_blank" rel="noopener">Abrir no YouTube</a></p>` : ''}</div></div>`;
+  // versão 1.8.1: cada botão abre só o que foi pedido (Assistir = vídeo, Ouvir = áudio, Ler letra = letra); o card abre tudo
+  const modo = FC.modo, ouvirYt = !c.audio && c.youtube;
+  const ytGrande = auto => `<div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${c.youtube}${auto ? '?autoplay=1' : ''}" title="Vídeo da cantiga" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`;
+  const ytMini = `<div class="ct-ouvir-yt"><div class="yt-mini"><iframe src="https://www.youtube-nocookie.com/embed/${c.youtube}?autoplay=1" title="Vídeo da cantiga" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin"></iframe></div><p class="small muted">Esta cantiga ainda não tem áudio salvo, então ela toca pelo vídeo do YouTube em tamanho pequeno. O YouTube não permite tocar só o áudio nem continuar com a tela apagada.</p></div>`;
+  const letra = `<pre class="letra">${esc(c.letra || 'Letra ainda não cadastrada.')}</pre>`;
+  const info = `<dl class="ct-info">${c.secoes.length ? `<dt>Seções</dt><dd>${c.secoes.map(id => esc(cSecNome(id))).join(' · ')}</dd>` : ''}${c.toqueId ? `<dt>Toque</dt><dd>${esc(cToq(c.toqueId))}</dd>` : ''}<dt>Origem</dt><dd>${ORIG[c.origem] || '—'}${c.autor ? ': ' + esc(c.autor) : ''}</dd>${c.obs ? `<dt>Observações</dt><dd>${esc(c.obs)}</dd>` : ''}</dl>`;
+  const outros = [['assistir', IC.play, 'Assistir', !!c.youtube], ['ouvir', IC.fone, 'Ouvir', !!(c.audio || c.youtube)], ['letra', IC.letra, 'Ler letra', !!c.letra]].filter(([m, , , ok]) => ok && m !== modo)
+    .map(([m, ic, rot]) => `<button class="lp-btn light ct-b" data-act="cAbrir" data-id="${c.id}" data-modo="${m}">${ic}<span>${rot}</span></button>`).join('');
+  const topo = `<div class="ct-topo"><button class="btn sm ghost" data-act="cVoltar">← Voltar às cantigas</button><div class="ct-bts ct-bts-det">${outros}${modo ? `<button class="lp-btn light ct-b" data-act="cVer" data-id="${c.id}">${IC.camadas}<span>Ver tudo</span></button>` : ''}</div></div>`;
+  if (modo === 'letra') return `${topo}<div class="ct-so ct-so-letra" id="ct-letra"><h1>${esc(c.titulo)}</h1>${letra}</div>`;
+  if (modo === 'assistir' && c.youtube) return `${topo}<div class="ct-so ct-so-video"><h1>${esc(c.titulo)}</h1>${ytGrande(true)}</div>`;
+  if (modo === 'ouvir') return `${topo}<div class="ct-so ct-so-audio"><h1>${esc(c.titulo)}</h1>${c.audio ? '<div class="ct-audio"><div id="c-play"></div></div>' : ouvirYt ? ytMini : ''}</div>`;
+  const audio = c.audio ? `<div class="ct-audio"><button class="lp-btn purple" data-act="cOuvir" data-id="${c.id}">${IC.fone} Ouvir só o áudio</button><div id="c-play"></div></div>` : '';
+  return `${topo}
+    <div class="ct-det"><div class="ct-midia">${c.youtube ? ytGrande(false) : ''}${audio}${!c.youtube && !c.audio ? `<div class="lp-panel ct-semmidia">${ART.drum}<p class="muted">Esta cantiga tem só a letra.</p></div>` : ''}${info}</div>
+      <div class="ct-letra" id="ct-letra"><h1>${esc(c.titulo)}</h1>${letra}${c.youtube ? `<p class="small"><a href="https://www.youtube.com/watch?v=${c.youtube}" target="_blank" rel="noopener">Abrir no YouTube</a></p>` : ''}</div></div>`;
 }
 function cantigas() {
   if (!C) return cabecalho('Cantigas') + '<p class="muted">Carregando…</p>';
@@ -374,7 +381,7 @@ const ACT = {
   pedirOk: t => run(async () => { const r = await api('leitor.solicitar', { token: token(), obraId: t.dataset.id }, 'Enviando pedido…'); modal(''); toast(`Pedido feito! O livro fica separado até ${fmtD(r.expiraEm)}.`); await carregar(); }),
   cancelar: t => run(async () => { await api('leitor.cancelar', { token: token(), id: t.dataset.id }, 'Cancelando…'); toast('Pedido cancelado'); await carregar(); }),
   cSec: t => { FC.sec = t.dataset.id; FC.id = ''; render(); },
-  cAbrir: (t, e) => { e.stopPropagation(); FC.id = t.dataset.id; FC.modo = t.dataset.modo; render(); window.scrollTo(0, 0); if (FC.modo === 'letra') { const l = $('#ct-letra'); if (l) l.scrollIntoView({ block: 'start' }); } const c = C.cantigas.find(x => x.id === FC.id); if (FC.modo === 'ouvir' && c && c.audio) run(() => ouvirAudio(c.id)); },
+  cAbrir: (t, e) => { e.stopPropagation(); FC.id = t.dataset.id; FC.modo = t.dataset.modo; render(); window.scrollTo(0, 0); const c = C.cantigas.find(x => x.id === FC.id); if (FC.modo === 'ouvir' && c && c.audio) run(() => ouvirAudio(c.id)); },
   cVer: t => { FC.id = t.dataset.id; FC.modo = ''; render(); window.scrollTo(0, 0); },
   cVoltar: () => { FC.id = ''; render(); },
   cOuvir: t => run(() => ouvirAudio(t.dataset.id)),
