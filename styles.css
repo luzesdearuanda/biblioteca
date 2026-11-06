@@ -461,3 +461,14 @@ td .pill{white-space:normal;text-align:left}
 .ic-pick span svg{width:22px;height:22px}
 .ic-pick input:checked+span{border-color:var(--sea);background:var(--sea);color:var(--on-sea)}
 .ic-pick input:focus-visible+span{outline:2px solid var(--sea);outline-offset:2px}
+/* versão 1.10: capas (internet, 1ª página do PDF, foto) */
+.capa-linha{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.inline.wrap{flex-wrap:wrap}
+.capas-grade{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.capa-op{width:64px;height:92px;padding:0;border:2px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface-2);cursor:pointer}
+.capa-op img{width:100%;height:100%;object-fit:cover;display:block}
+.capa-op[aria-pressed=true]{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand)}
+.cf-lista{display:grid;gap:10px;max-height:55vh;overflow:auto}
+.cf-row{display:grid;gap:6px;padding:10px;border:1px solid var(--line);border-radius:10px}
+.cf-row .capas-grade{margin-top:0}
+.cf-row .capa-op{width:52px;height:76px}

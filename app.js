@@ -127,6 +127,7 @@ const showCPF = c => isAdmin() ? fmtCPF(c) : maskCPF(c);
 
 /* Ícones */
 const I = {
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   tablet: '<rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M9 7h6M9 10.5h6M9 14h4"/><path d="M11 18.5h2"/>',
   music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
   home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
@@ -590,7 +591,7 @@ VIEWS.catalogo = {
   render() {
     const cats = [...new Set(S.obras.map(o => o.genero))].sort((a, b) => generoNome(a).localeCompare(generoNome(b), 'pt-BR'));
     return `<div class="page-head"><div><h1>Catálogo</h1><p class="sub">${S.obras.length} títulos · ${kpis().exemplares} exemplares. Cada exemplar físico tem seu próprio código de etiqueta.</p></div>
-      <button class="btn primary" data-act="go" data-v="obraForm">${ic('plus')} Nova obra</button></div>
+      <div class="inline wrap">${S.obras.some(o => !o.capa) ? `<button class="btn" data-act="capasFaltam">${ic('search')} Buscar capas que faltam</button>` : ''}<button class="btn primary" data-act="go" data-v="obraForm">${ic('plus')} Nova obra</button></div></div>
       <div class="toolbar"><label class="search"><span class="sr">Buscar</span>${ic('search')}<input id="cat-q" data-in="catQ" value="${esc(P.q || '')}" placeholder="Título, autor, ISBN ou código da etiqueta" autocomplete="off"></label>
       ${podeEscanear() ? `<button type="button" class="btn" data-act="scanCat">${ic('scan')} Ler ISBN</button>` : ''}
       <div class="field" style="flex:0 1 220px"><label class="sr" for="cat-cat">Gênero</label><select id="cat-cat" data-ch="catCat"><option value="">Todos os gêneros</option>${cats.map(c => `<option value="${esc(c)}" ${P.cat === c ? 'selected' : ''}>${esc(generoNome(c))} (${esc(c)})</option>`).join('')}</select></div></div>
@@ -670,6 +671,10 @@ VIEWS.obraForm = {
           <div class="field"><label for="f-edicao">Edição</label><input id="f-edicao" value="${v('edicao')}" placeholder="Ex.: 3ª edição"></div>
           <div class="field"><label for="f-idioma">Idioma</label><input id="f-idioma" value="${v('idioma', 'Português')}"></div>
           <div class="field full"><label for="f-obs">Observações</label><textarea id="f-obs">${v('obs')}</textarea></div>
+          <div class="field full"><span class="lbl" style="font-weight:600">Capa</span>
+            <div class="capa-linha"><span id="ob-capa-prev" class="dig-capa">${o && o.capa ? `<img src="${esc(o.capa)}" alt="">` : ic('book')}</span>
+              <div class="inline wrap"><button type="button" class="btn sm" data-act="obCapaBuscar">${ic('search')} Buscar na internet</button><label class="btn sm">${ic('camera')} Tirar foto ou escolher<input type="file" accept="image/*" hidden data-ch="obCapaFoto"></label><button type="button" class="btn sm ghost" data-act="obCapaTirar">Tirar a capa</button></div></div>
+            <div id="ob-capas"></div><span class="hint">Aparece no portal do leitor. Sem capa escolhida, o portal tenta achar pelo ISBN.</span></div>
         </div></fieldset>
         ${ed ? '' : `<fieldset><legend>Exemplares físicos</legend><div class="fields">
           <div class="field"><label for="f-qtd">Quantidade de exemplares <span class="req">*</span></label><input id="f-qtd" type="number" min="1" max="50" value="1" data-in="obraQtd"><span class="hint">Cada exemplar recebe um código próprio.</span><span class="msg" id="m-qtd"></span></div>
@@ -679,7 +684,7 @@ VIEWS.obraForm = {
         <div class="form-actions"><button type="button" class="btn" data-act="go" data-v="${ed ? 'obra' : 'catalogo'}" ${ed ? `data-id="${o.id}"` : ''}>Cancelar</button><button class="btn primary">${ed ? 'Salvar alterações' : 'Salvar e gerar códigos'}</button></div>
       </form>`;
   },
-  after() { UI.gb = []; if (!P.id && P.isbn && $('#f-isbn')) ACT.gbIsbn(); }
+  after() { UI.gb = []; const o = P.id ? obra(P.id) : null; UI.obCapa = (o && o.capa) || ''; if (!P.id && P.isbn && $('#f-isbn')) ACT.gbIsbn(); }
 };
 function codPreview(sig, qtd) {
   sig = sig ?? ($('#f-genero') ? $('#f-genero').value : '');
@@ -1692,6 +1697,7 @@ function fillFromGB(r) {
   set('#f-isbn', r.isbn); set('#f-titulo', r.titulo); set('#f-autor', r.autor); set('#f-editora', r.editora); set('#f-ano', r.ano); set('#f-idioma', r.idioma);
   const cb = $('#f-semisbn'); if (cb && r.isbn) { cb.checked = false; CHG.semIsbn(cb); }
   const fontes = (r.fontes || [r.fonte || 'Google Books']).join(' + ');
+  if (!UI.obCapa && $('#ob-capas')) ACT.obCapaBuscar(); // versão 1.10: já mostra as capas encontradas para escolher
   $('#gb-note').innerHTML = `<div class="note info"><b>Dados sugeridos por ${esc(fontes)}</b><span>Revise antes de salvar${r.fonte === 'Open Library' && !r.isbn ? ' (editora, ano e ISBN variam conforme a edição)' : ''} e escolha o gênero, que define a sigla da etiqueta.</span></div>`;
 }
 function salvarObra(p) {
@@ -1735,7 +1741,7 @@ const FORM = {
     let qtd = 0, local = '';
     if (!ed) { qtd = parseInt(val('qtd')); local = val('local'); ok = fieldErr('qtd', !(qtd >= 1 && qtd <= 50) ? 'Entre 1 e 50.' : '') && ok; ok = fieldErr('local', local ? '' : 'Campo obrigatório.') && ok; }
     if (!ok) { $('.field.err input, .field.err select')?.focus(); return; }
-    const p = { id: P.id || '', isbn: semIsbn ? '' : isbnRaw, semIsbn, titulo: val('titulo'), autor: val('autor'), genero: $('#f-genero').value, editora: val('editora'), ano, edicao: val('edicao'), idioma: val('idioma'), obs: val('obs'), qtd, local };
+    const p = { id: P.id || '', isbn: semIsbn ? '' : isbnRaw, semIsbn, titulo: val('titulo'), autor: val('autor'), genero: $('#f-genero').value, editora: val('editora'), ano, edicao: val('edicao'), idioma: val('idioma'), obs: val('obs'), capa: UI.obCapa || '', qtd, local };
     salvarObra(p);
   },
   usuario() {
@@ -2338,9 +2344,11 @@ VIEWS.virtual = {
   }
 };
 function digForm(d) {
-  d = d || { autorizacao: '', ativo: true, partes: [] }; UI.dig = { id: d.id || '', capa: d.capa || '', pdf: null };
+  d = d || { autorizacao: '', ativo: true, partes: [] }; UI.dig = { id: d.id || '', capa: d.capa || '', pdf: null, capaPdf: '', isbn: '' };
   const gens = (S.generos || []).slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')), obras = S.obras.slice().sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'));
   return `<h2>${d.id ? 'Editar livro digital' : 'Novo livro digital'}</h2><div class="fields">
+    <div class="field full"><span class="lbl" style="font-weight:600">Arquivo PDF ${d.id && (d.partes || []).length ? '(atual: ' + MB(d.tamanho) + ')' : ''}</span><div class="inline wrap"><label class="btn sm ${d.id ? '' : 'primary'}">${d.id && (d.partes || []).length ? 'Trocar PDF' : 'Escolher PDF'}<input type="file" accept="application/pdf,.pdf" hidden data-ch="digPdf"></label><span class="hint" id="dg-pdf-nome">Até 20 MB.${d.id ? '' : ' Comece pelo PDF: o sistema lê o arquivo e preenche o que conseguir.'}</span></div></div>
+    <div class="field full" id="dg-auto"></div>
     <div class="field full"><label for="dg-tit">Título</label><input id="dg-tit" maxlength="200" value="${esc(d.titulo || '')}"></div>
     <div class="field"><label for="dg-aut">Autor</label><input id="dg-aut" maxlength="150" value="${esc(d.autor || '')}"></div>
     <div class="field"><label for="dg-ano">Ano</label><input id="dg-ano" inputmode="numeric" maxlength="4" value="${esc(d.ano || '')}"></div>
@@ -2350,15 +2358,16 @@ function digForm(d) {
     <div class="field"><label for="dg-autz">Autorização para publicar</label><select id="dg-autz" data-ch="digAutz"><option value="">Escolha…</option>${Object.keys(AUTORIZ).map(k => `<option value="${k}" ${d.autorizacao === k ? 'selected' : ''}>${AUTORIZ[k]}</option>`).join('')}</select></div>
     <div class="field" id="dg-obs-f" ${d.autorizacao === 'autorizado' ? '' : 'hidden'}><label for="dg-obs">Quem autorizou e como</label><input id="dg-obs" maxlength="300" value="${esc(d.autorizacaoObs || '')}" placeholder="Ex.: e-mail da editora em 10/11/2026"></div>
     <div class="field full"><label class="check"><input type="checkbox" id="dg-assoc" ${d.soAssociados ? 'checked' : ''}> Só para associados da casa (ex.: apostilas internas)</label></div>
-    <div class="field"><span class="lbl" style="font-weight:600">Capa (opcional)</span><div class="inline"><span id="dg-capa-prev" class="dig-capa">${d.capa ? `<img src="${d.capa}" alt="">` : ic('tablet')}</span><label class="btn sm">Escolher imagem<input type="file" accept="image/*" hidden data-ch="digCapa"></label>${d.capa ? '<button type="button" class="btn sm ghost" data-act="digCapaTirar">Tirar</button>' : ''}</div></div>
-    <div class="field"><span class="lbl" style="font-weight:600">Arquivo PDF ${d.id && (d.partes || []).length ? '(atual: ' + MB(d.tamanho) + ')' : ''}</span><label class="btn sm">${d.id && (d.partes || []).length ? 'Trocar PDF' : 'Escolher PDF'}<input type="file" accept="application/pdf,.pdf" hidden data-ch="digPdf"></label><span class="hint" id="dg-pdf-nome">Até 20 MB.</span></div>
+    <div class="field full"><span class="lbl" style="font-weight:600">Capa</span><div class="capa-linha"><span id="dg-capa-prev" class="dig-capa">${d.capa ? `<img src="${esc(d.capa)}" alt="">` : ic('tablet')}</span>
+      <div class="inline wrap"><button type="button" class="btn sm" data-act="digCapasNet">${ic('search')} Buscar na internet</button><button type="button" class="btn sm" data-act="digCapaPdf" ${UI.dig.capaPdf ? '' : 'hidden'} id="dg-capa-pdf">Usar a 1ª página do PDF</button><label class="btn sm">Escolher imagem<input type="file" accept="image/*" hidden data-ch="digCapa"></label><button type="button" class="btn sm ghost" data-act="digCapaTirar">Tirar</button></div></div>
+      <div id="dg-capas"></div><span class="hint">Ao escolher o PDF, a 1ª página vira a capa; as capas da internet aparecem abaixo para trocar.</span></div>
     ${d.id ? `<div class="field full"><label class="check"><input type="checkbox" id="dg-ativo" ${d.ativo ? 'checked' : ''}> Ativo (aparece no portal)</label></div>` : ''}
   </div><div class="modal-actions"><button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="digSalvar">Salvar</button></div>`;
 }
-function capaReduzida(file) {
+function capaReduzida(file, alt = 420, max = 44000) { // versão 1.10: no máximo 44 mil caracteres (a célula da planilha aceita 50 mil)
   return new Promise((res, rej) => { const img = new Image(), url = URL.createObjectURL(file); img.onload = () => {
-    const h = Math.min(420, img.naturalHeight), w = Math.round(img.naturalWidth * h / img.naturalHeight), cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(img, 0, 0, w, h); URL.revokeObjectURL(url);
-    let q = 0.82, s = cv.toDataURL('image/jpeg', q); while (s.length > 78000 && q > 0.3) { q -= 0.12; s = cv.toDataURL('image/jpeg', q); } s.length > 78000 ? rej(new Error('Imagem grande demais para capa.')) : res(s); };
+    const h = Math.min(alt, img.naturalHeight), w = Math.round(img.naturalWidth * h / img.naturalHeight), cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(img, 0, 0, w, h); URL.revokeObjectURL(url);
+    let q = 0.82, s = cv.toDataURL('image/jpeg', q); while (s.length > max && q > 0.3) { q -= 0.12; s = cv.toDataURL('image/jpeg', q); } s.length > max ? rej(new Error('Imagem grande demais para capa.')) : res(s); };
     img.onerror = () => rej(new Error('Não foi possível ler a imagem.')); img.src = url; });
 }
 async function digEnviarPdf(id, file) {
@@ -2368,7 +2377,7 @@ async function digEnviarPdf(id, file) {
 Object.assign(ACT, {
   digNovo() { openModal(digForm()); },
   digEditar(t) { openModal(digForm((S.digitais || []).find(x => x.id === t.dataset.id))); },
-  digCapaTirar() { UI.dig.capa = ''; $('#dg-capa-prev').innerHTML = ic('tablet'); },
+  digCapaTirar() { UI.dig.capa = ''; $('#dg-capa-prev').innerHTML = ic('tablet'); marcaCapa('#dg-capas', ''); },
   digSalvar() {
     const v = s => ($(s) ? $(s).value : ''), u = UI.dig, d = { id: u.id || undefined, titulo: v('#dg-tit'), autor: v('#dg-aut'), ano: v('#dg-ano'), genero: v('#dg-gen'), obraId: v('#dg-obra'), descricao: v('#dg-desc'), autorizacao: v('#dg-autz'), autorizacaoObs: v('#dg-obs'), soAssociados: $('#dg-assoc').checked, capa: u.capa, ativo: $('#dg-ativo') ? $('#dg-ativo').checked : true };
     if (!u.id && !u.pdf) { toast('Escolha o arquivo PDF.', 'bad'); return; }
@@ -2379,7 +2388,7 @@ Object.assign(CHG, {
   digInat(el) { P.inat = el.checked ? '1' : ''; $('#dig-res').innerHTML = digLista(); },
   digAutz(el) { $('#dg-obs-f').hidden = el.value !== 'autorizado'; },
   digCapa(el) { const f = el.files[0]; if (!f) return; run(async () => { UI.dig.capa = await capaReduzida(f); $('#dg-capa-prev').innerHTML = `<img src="${UI.dig.capa}" alt="">`; }); },
-  digPdf(el) { const f = el.files[0]; if (!f) return; if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') { toast('Escolha um arquivo PDF.', 'bad'); return; } if (f.size > 20 * 1024 * 1024) { toast(`PDF com ${MB(f.size)}: o limite é 20 MB. Comprima o arquivo (ex.: ilovepdf.com → Comprimir PDF) e tente de novo.`, 'bad'); el.value = ''; return; } UI.dig.pdf = f; $('#dg-pdf-nome').textContent = `${f.name} (${MB(f.size)})`; },
+  digPdf(el) { const f = el.files[0]; if (!f) return; if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') { toast('Escolha um arquivo PDF.', 'bad'); return; } if (f.size > 20 * 1024 * 1024) { toast(`PDF com ${MB(f.size)}: o limite é 20 MB. Comprima o arquivo (ex.: ilovepdf.com → Comprimir PDF) e tente de novo.`, 'bad'); el.value = ''; return; } UI.dig.pdf = f; $('#dg-pdf-nome').textContent = `${f.name} (${MB(f.size)})`; lerPdfCadastro(f).catch(e => { const n = $('#dg-auto'); if (n) n.innerHTML = `<div class="note warn"><span>Não consegui ler o PDF para preencher (${esc(e.message || 'erro')}). Preencha à mão; o envio funciona do mesmo jeito.</span></div>`; }); },
 });
 INP.digQ = el => { P.q = el.value; $('#dig-res').innerHTML = digLista(); };
 
@@ -2431,4 +2440,102 @@ Object.assign(CHG, {
     const prog = m => { if (box) box.innerHTML = `<div class="note"><b>${esc(m)}</b><span>Pode levar alguns segundos. Não feche esta janela.</span></div>`; };
     run(async () => { try { const b = await extrairAudio(f, prog); if (b.size > 15 * 1024 * 1024) throw new Error('O áudio ficou maior que 15 MB. Corte o vídeo em um trecho menor.'); UI.cant.blob = b; UI.cant.url = URL.createObjectURL(b); cantRefreshAudio(); toast(`Áudio extraído (${MB(b.size)}). Ele será salvo junto com a cantiga.`); } catch (e) { cantRefreshAudio(); throw e; } });
   },
+});
+
+/* ---- versão 1.10: capas (internet, 1ª página do PDF, foto) e leitura do PDF no cadastro do livro digital ---- */
+const gbCapa = u => u ? u.replace(/^http:/, 'https:').replace(/&edge=curl/, '') : '';
+async function buscarCapas({ isbn, titulo, autor }) {
+  const out = [], add = u => { if (u && !out.includes(u)) out.push(u); }, i = String(isbn || '').replace(/[^0-9X]/gi, ''), a1 = String(autor || '').split(',')[0].trim();
+  const key = CFG.GOOGLE_BOOKS_KEY ? '&key=' + encodeURIComponent(CFG.GOOGLE_BOOKS_KEY) : '';
+  const gb = async q => { const r = await fetch('https://www.googleapis.com/books/v1/volumes?maxResults=6&q=' + encodeURIComponent(q) + key); if (!r.ok) return []; return ((await r.json()).items || []).map(it => gbCapa(((it.volumeInfo || {}).imageLinks || {}).thumbnail)).filter(Boolean); };
+  const ol = async q => { const r = await fetch('https://openlibrary.org/search.json?limit=6&fields=cover_i&' + q); if (!r.ok) return []; return ((await r.json()).docs || []).filter(d => d.cover_i).map(d => `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`); };
+  const t = [];
+  if (i.length >= 10) { t.push(gb('isbn:' + i)); t.push(Promise.resolve([`https://covers.openlibrary.org/b/isbn/${i}-M.jpg?default=false`])); }
+  if (titulo) { t.push(gb(`intitle:${titulo}${a1 ? ' inauthor:' + a1 : ''}`)); t.push(ol('title=' + encodeURIComponent(titulo) + (a1 ? '&author=' + encodeURIComponent(a1) : ''))); }
+  (await Promise.allSettled(t)).forEach(r => { if (r.status === 'fulfilled') r.value.forEach(add); });
+  // confere se a imagem existe de verdade (sem capa a Open Library responde 404)
+  const ok = await Promise.all(out.slice(0, 10).map(u => new Promise(res => { const im = new Image(); im.onload = () => res(im.naturalWidth > 40 && im.naturalHeight > 60 ? u : ''); im.onerror = () => res(''); setTimeout(() => res(''), 8000); im.src = u; })));
+  return ok.filter(Boolean).slice(0, 8);
+}
+const capasGrade = (l, act, extra = '') => l.length ? `<div class="capas-grade">${l.map(u => `<button type="button" class="capa-op" data-act="${act}" data-url="${esc(u)}" ${extra} aria-pressed="false" aria-label="Usar esta capa"><img src="${esc(u)}" alt="" loading="lazy"></button>`).join('')}</div>`
+  : '<p class="small muted" style="margin:6px 0 0">Nenhuma capa encontrada na internet.</p>';
+const marcaCapa = (box, url) => document.querySelectorAll(box + ' .capa-op').forEach(b => b.setAttribute('aria-pressed', b.dataset.url === url));
+const capaPrev = (sel, url, vazio) => { $(sel).innerHTML = url ? `<img src="${esc(url)}" alt="">` : ic(vazio); };
+async function capaDaPagina(pdf) {
+  const pg = await pdf.getPage(1), v0 = pg.getViewport({ scale: 1 }), vp = pg.getViewport({ scale: 420 / v0.height }), cv = document.createElement('canvas');
+  cv.width = Math.round(vp.width); cv.height = Math.round(vp.height); const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+  await pg.render({ canvasContext: ctx, viewport: vp }).promise;
+  let q = 0.8, s = cv.toDataURL('image/jpeg', q); while (s.length > 44000 && q > 0.3) { q -= 0.1; s = cv.toDataURL('image/jpeg', q); } return s.length <= 44000 ? s : '';
+}
+const PDFJS_APP = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+const tituloUtil = t => t && t.length > 2 && !/^(untitled|sem t[ií]tulo|microsoft word|documento?\s*\d*$)|\.(docx?|pdf|odt|rtf)$/i.test(t);
+async function lerPdfCadastro(f) {
+  const nota = t => { const n = $('#dg-auto'); if (n) n.innerHTML = `<div class="note info"><span>${t}</span></div>`; }, u = UI.dig;
+  nota('Lendo o PDF para preencher o cadastro…');
+  if (!window.pdfjsLib) await scriptUnico(PDFJS_APP + 'pdf.min.js'); pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_APP + 'pdf.worker.min.js';
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await f.arrayBuffer()), isEvalSupported: false }).promise;
+  if (UI.dig !== u) return; // o formulário foi fechado
+  const info = ((await pdf.getMetadata().catch(() => ({}))) || {}).info || {}, tMeta = String(info.Title || '').trim(), aMeta = String(info.Author || '').trim();
+  const feitos = [], pre = (sel, v, rot) => { const el = $(sel); if (el && v && !el.value.trim()) { el.value = v; feitos.push(rot); } };
+  // capa: 1ª página (vira a capa se ainda não houver uma)
+  try { u.capaPdf = await capaDaPagina(pdf); if (u.capaPdf) { $('#dg-capa-pdf').hidden = false; if (!u.capa) { u.capa = u.capaPdf; capaPrev('#dg-capa-prev', u.capa, 'tablet'); feitos.push('capa (1ª página)'); } } } catch (e) { }
+  // texto das primeiras páginas: procura o ISBN e serve para o Gemini
+  let texto = ''; for (let i = 1; i <= Math.min(pdf.numPages, 6) && texto.length < 15000; i++) { try { texto += (await (await pdf.getPage(i)).getTextContent()).items.map(x => (x.str || '') + (x.hasEOL ? '\n' : ' ')).join('') + '\n'; } catch (e) { } }
+  const temTexto = texto.replace(/\s/g, '').length >= 40, mi = texto.replace(/[‐-―]/g, '-').match(/97[89](?:[-\s]?\d){10}/);
+  let livro = null; if (mi) { u.isbn = mi[0].replace(/\D/g, ''); try { livro = (await buscarIsbn(u.isbn)).res; } catch (e) { } }
+  pre('#dg-tit', (livro && livro.titulo) || (tituloUtil(tMeta) ? tMeta : ''), 'título'); pre('#dg-aut', (livro && livro.autor) || (aMeta && !/^(user|usu[aá]rio|admin|autor)$/i.test(aMeta) ? aMeta : ''), 'autor'); pre('#dg-ano', livro && livro.ano, 'ano');
+  let obs = temTexto ? '' : ' O PDF parece escaneado (só imagem): não há texto para ler.';
+  const falta = ['#dg-tit', '#dg-aut', '#dg-ano', '#dg-desc'].some(s => !$(s).value.trim()) || !$('#dg-gen').value;
+  if (falta && temTexto) {
+    if (S.geminiOk) { nota('Pedindo sugestões ao Gemini…'); try { const g = await api('dig.sugerir', { texto, meta: [tMeta && 'Título: ' + tMeta, aMeta && 'Autor: ' + aMeta].filter(Boolean).join('; ') }, { msg: 'Pedindo sugestões ao Gemini…' });
+      if (UI.dig !== u) return; pre('#dg-tit', g.titulo, 'título'); pre('#dg-aut', g.autor, 'autor'); pre('#dg-ano', g.ano, 'ano'); pre('#dg-desc', g.descricao, 'descrição'); if (g.genero && !$('#dg-gen').value) { $('#dg-gen').value = g.genero; feitos.push('gênero'); } } catch (e) { obs += ` O Gemini não respondeu agora (${esc(e.message)}).`; } }
+    else obs += ' A descrição e o gênero podem ser sugeridos pelo Gemini quando a chave estiver cadastrada em Configurações.';
+  }
+  const ob = S.obras.find(o => (u.isbn && digits(o.isbn) === u.isbn) || (norm(o.titulo) && norm(o.titulo) === norm($('#dg-tit').value)));
+  if (ob && !$('#dg-obra').value) { $('#dg-obra').value = ob.id; feitos.push('ligação com o catálogo físico'); }
+  nota(`${feitos.length ? `<b>Preenchido a partir do PDF: ${feitos.join(', ')}.</b> Revise antes de salvar.` : 'O PDF não trouxe nada novo para preencher.'}${u.isbn ? ` ISBN encontrado: ${u.isbn}.` : ''}${obs}`);
+  if ($('#dg-tit').value.trim() || u.isbn) ACT.digCapasNet();
+}
+function capasFaltamLinha(o) {
+  const c = UI.cf[o.id]; if (!c) return '';
+  return `<div class="cf-row"><label class="check"><input type="checkbox" data-ch="cfMarca" data-id="${o.id}" ${c.esc ? (o.isbn && !o.semIsbn ? 'checked' : '') : 'disabled'}> <span><b>${esc(o.titulo)}</b><br><span class="small muted">${esc(o.autor)}${o.isbn ? ' · ' + esc(o.isbn) : ''}</span></span></label>
+    ${c.lista.length && !(o.isbn && !o.semIsbn) ? '<span class="small muted">Sem ISBN: achada pelo título, confira antes de marcar.</span>' : ''}${c.lista.length ? capasGrade(c.lista, 'cfEsc', `data-id="${o.id}"`) : '<p class="small muted" style="margin:0">Não encontrada. Dá para tirar uma foto da capa na tela da obra.</p>'}</div>`;
+}
+Object.assign(ACT, {
+  obCapaBuscar() {
+    const isbn = $('#f-semisbn') && $('#f-semisbn').checked ? '' : ($('#f-isbn').value || ''), titulo = $('#f-titulo').value.trim(), autor = $('#f-autor').value.trim();
+    if (!titulo && digits(isbn).length < 10) { toast('Preencha o ISBN ou o título primeiro.', 'bad'); return; }
+    $('#ob-capas').innerHTML = '<p class="small muted" style="margin:6px 0 0">Procurando capas na internet…</p>';
+    buscarCapas({ isbn, titulo, autor }).then(l => { const b = $('#ob-capas'); if (b) { b.innerHTML = capasGrade(l, 'obCapaUsar'); marcaCapa('#ob-capas', UI.obCapa); } });
+  },
+  obCapaUsar(t) { UI.obCapa = t.dataset.url; capaPrev('#ob-capa-prev', UI.obCapa, 'book'); marcaCapa('#ob-capas', UI.obCapa); },
+  obCapaTirar() { UI.obCapa = ''; capaPrev('#ob-capa-prev', '', 'book'); marcaCapa('#ob-capas', ''); },
+  digCapasNet() {
+    const titulo = ($('#dg-tit') || {}).value || '', autor = ($('#dg-aut') || {}).value || '';
+    if (!titulo.trim() && !UI.dig.isbn) { toast('Preencha o título primeiro.', 'bad'); return; }
+    $('#dg-capas').innerHTML = '<p class="small muted" style="margin:6px 0 0">Procurando capas na internet…</p>'; const u = UI.dig;
+    buscarCapas({ isbn: u.isbn, titulo: titulo.trim(), autor }).then(l => { const b = $('#dg-capas'); if (b && UI.dig === u) { b.innerHTML = capasGrade(l, 'digCapaUsar'); marcaCapa('#dg-capas', u.capa); } });
+  },
+  digCapaUsar(t) { UI.dig.capa = t.dataset.url; capaPrev('#dg-capa-prev', UI.dig.capa, 'tablet'); marcaCapa('#dg-capas', UI.dig.capa); },
+  digCapaPdf() { if (!UI.dig.capaPdf) return; UI.dig.capa = UI.dig.capaPdf; capaPrev('#dg-capa-prev', UI.dig.capa, 'tablet'); marcaCapa('#dg-capas', ''); },
+  capasFaltam() {
+    const l = S.obras.filter(o => !o.capa).sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR')).slice(0, 60); UI.cf = {};
+    openModal(`<h2>Buscar capas que faltam</h2><p class="small">Procurando na internet as capas de ${plural(l.length, 'obra sem capa', 'obras sem capa')}${S.obras.filter(o => !o.capa).length > 60 ? ' (60 por vez)' : ''}. Confira cada uma: marque as certas e, se precisar, clique em outra opção.</p>
+      <p class="small muted" id="cf-prog">Procurando… 0 de ${l.length}</p><div id="cf-res" class="cf-lista"></div>
+      <div class="modal-actions"><button class="btn" data-act="close">Fechar</button><button class="btn primary" data-act="capasSalvar" id="cf-salvar" disabled>Salvar as marcadas</button></div>`);
+    let i = 0, feitos = 0; const um = async () => { while (i < l.length) { const o = l[i++]; if (!$('#cf-res')) return; let lista = []; try { lista = await buscarCapas({ isbn: o.semIsbn ? '' : o.isbn, titulo: o.titulo, autor: o.autor }); } catch (e) { }
+      UI.cf[o.id] = { lista, esc: lista[0] || '' }; const box = $('#cf-res'); if (!box) return; box.insertAdjacentHTML('beforeend', capasFaltamLinha(o)); if (o.isbn && !o.semIsbn) marcaCapa(`#cf-res .cf-row:last-child`, UI.cf[o.id].esc);
+      $('#cf-prog').textContent = `Procurando… ${++feitos} de ${l.length}`; $('#cf-salvar').disabled = !Object.values(UI.cf).some(c => c.esc); } };
+    Promise.all([um(), um(), um()]).then(() => { const p = $('#cf-prog'); if (p) { const n = Object.values(UI.cf).filter(c => c.esc).length; p.textContent = `Pronto: capa encontrada para ${n} de ${l.length}.`; } });
+  },
+  cfEsc(t) { const c = UI.cf[t.dataset.id]; if (!c) return; c.esc = t.dataset.url; const row = t.closest('.cf-row'); row.querySelectorAll('.capa-op').forEach(b => b.setAttribute('aria-pressed', b === t)); const cb = row.querySelector('input'); cb.disabled = false; cb.checked = true; },
+  capasSalvar() {
+    const capas = [...document.querySelectorAll('#cf-res input[data-ch=cfMarca]:checked')].map(cb => ({ id: cb.dataset.id, capa: UI.cf[cb.dataset.id].esc })).filter(x => x.capa);
+    if (!capas.length) { toast('Marque pelo menos uma capa.', 'bad'); return; }
+    run(async () => { const r = await api('obra.capas', { capas }, { msg: 'Salvando as capas…' }); closeModal(); render(); toast(`${plural(r.n, 'capa salva', 'capas salvas')}`); });
+  },
+});
+Object.assign(CHG, {
+  obCapaFoto(el) { const f = el.files[0]; if (!f) return; run(async () => { UI.obCapa = await capaReduzida(f, 300, 20000); capaPrev('#ob-capa-prev', UI.obCapa, 'book'); marcaCapa('#ob-capas', ''); toast('Foto pronta para virar a capa. Salve a obra para gravar.'); }); el.value = ''; },
+  cfMarca(el) { const c = UI.cf[el.dataset.id]; if (c) el.closest('.cf-row').querySelectorAll('.capa-op').forEach(b => b.setAttribute('aria-pressed', el.checked && b.dataset.url === c.esc)); },
 });

@@ -186,7 +186,7 @@ const tituloCard = (t, act, id) => `<h3 class="ct-t"><button type="button" class
 
 /* ---------- catálogo físico (versão 1.9): painel de gêneros + filtros + cards com capa + tela do livro ---------- */
 const isbnLimpo = s => String(s || '').replace(/[^0-9Xx]/g, '');
-const capaObra = (o, grande) => isbnLimpo(o.isbn).length >= 10 ? `<img src="https://covers.openlibrary.org/b/isbn/${isbnLimpo(o.isbn)}-${grande ? 'L' : 'M'}.jpg?default=false" alt="${grande ? 'Capa de ' + esc(o.titulo) : ''}" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(ART.bookThumb))">` : ART.bookThumb;
+const capaObra = (o, grande) => o.capa ? `<img src="${esc(o.capa)}" alt="${grande ? 'Capa de ' + esc(o.titulo) : ''}" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(ART.bookThumb))">` : isbnLimpo(o.isbn).length >= 10 ? `<img src="https://covers.openlibrary.org/b/isbn/${isbnLimpo(o.isbn)}-${grande ? 'L' : 'M'}.jpg?default=false" alt="${grande ? 'Capa de ' + esc(o.titulo) : ''}" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(ART.bookThumb))">` : ART.bookThumb;
 const pendentes = () => new Set(D.solicitacoes.filter(s => s.status === 'pendente').map(s => s.obraId));
 const dispTxt = o => o.disp ? `Disponíveis: ${o.disp} de ${o.total}` : o.total === 1 ? 'Emprestado no momento' : 'Todos emprestados no momento';
 const pedirBt = (o, pend) => pend.has(o.id) ? '<span class="pill warn">pedido feito</span>' : o.disp && !D.bloqueios.length ? `<button class="lp-btn ct-b" data-act="pedir" data-id="${o.id}">${IC.book}<span>Pedir retirada</span></button>` : '';
@@ -227,7 +227,7 @@ let DG = null, LV = null; const FD = { q: '', g: '', ord: '', comecei: false, id
 const AUTZ_TXT = { 'Domínio público': 'Obra em domínio público.', 'Publicação própria da casa': 'Publicação da própria casa.', 'Autorizado pelo autor ou editora': 'Publicado com autorização do autor ou da editora.' };
 const posDe = id => (DG && DG.pos && DG.pos[id]) || null;
 const lerRot = d => { const p = posDe(d.id); return p && p.pag > 1 ? `Continuar da pág. ${p.pag}` : 'Ler'; };
-const capaDig = (d, grande) => d.capa ? `<img src="${d.capa}" alt="${grande ? 'Capa de ' + esc(d.titulo) : ''}">` : ART.bookThumb;
+const capaDig = (d, grande) => d.capa ? `<img src="${esc(d.capa)}" alt="${grande ? 'Capa de ' + esc(d.titulo) : ''}">` : ART.bookThumb;
 const progresso = d => { const p = posDe(d.id); if (!p || !p.total) return ''; const pc = Math.min(100, Math.round(p.pag / p.total * 100)); return `<span class="bk-prog" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Lido: ${pc}%"><span style="width:${pc}%"></span></span>`; };
 const digFiltrados = () => { const q = norm(FD.q); return ordenar(DG.digitais.filter(d => naGen(d, FD.g) && (!FD.comecei || posDe(d.id)) && (!q || norm(`${d.titulo} ${d.autor} ${d.descricao}`).includes(q))), FD.ord, d => d.criadoEm); };
 function listaDigitais() {
