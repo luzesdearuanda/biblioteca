@@ -127,6 +127,7 @@ const showCPF = c => isAdmin() ? fmtCPF(c) : maskCPF(c);
 
 /* Ícones */
 const I = {
+  upload: '<path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 20h16"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   tablet: '<rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M9 7h6M9 10.5h6M9 14h4"/><path d="M11 18.5h2"/>',
   music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
@@ -2341,7 +2342,7 @@ function digLista() {
 VIEWS.virtual = {
   render() {
     return `<div class="page-head"><div><h1>Biblioteca Virtual</h1><p class="sub">Livros em PDF para os leitores lerem na tela, pelo portal, sem baixar nem imprimir. Cada página leva o nome do leitor como marca d'água.</p></div>
-        <div class="toolbar"><button class="btn primary" data-act="digNovo">${ic('plus')} Novo livro digital</button></div></div>
+        <div class="toolbar"><button class="btn" data-act="digLote">${ic('upload')} Importar vários PDFs</button><button class="btn primary" data-act="digNovo">${ic('plus')} Novo livro digital</button></div></div>
       <div class="note"><b>Publique só o que pode ser publicado</b><span>Livros em domínio público (no Brasil, em geral autor falecido há mais de 70 anos), publicações da própria casa ou com autorização por escrito do autor ou da editora.</span></div>
       <div class="toolbar"><label class="search" style="flex:1 1 220px"><span class="sr">Buscar</span>${ic('search')}<input data-in="digQ" value="${esc(P.q || '')}" placeholder="Título ou autor" autocomplete="off"></label>
         <label class="check small"><input type="checkbox" data-ch="digInat" ${P.inat ? 'checked' : ''}> Desativados</label></div>
@@ -2552,3 +2553,103 @@ Object.assign(CHG, {
   obCapaFoto(el) { const f = el.files[0]; if (!f) return; run(async () => { UI.obCapa = await capaReduzida(f, 300, 20000); capaPrev('#ob-capa-prev', UI.obCapa, 'book'); marcaCapa('#ob-capas', ''); toast('Foto pronta para virar a capa. Salve a obra para gravar.'); }); el.value = ''; },
   cfMarca(el) { const c = UI.cf[el.dataset.id]; if (c) el.closest('.cf-row').querySelectorAll('.capa-op').forEach(b => b.setAttribute('aria-pressed', el.checked && b.dataset.url === c.esc)); },
 });
+
+/* ---- versão 1.11: importar vários PDFs de uma vez (lê cada arquivo no navegador, revisa numa tabela e envia um por um) ---- */
+const GEN_PALAVRAS = { ERV: /\b(erva|ervas|fitoter|planta|plantas|chas?\b|banhos? de|defumac|folhas? sagrad|herbal|medicinais)/, UMB: /\b(umbanda|umbandista|exus?\b|pomba ?gira|preto velho|pretos velhos|caboclos?|terreiro|ponto riscado|ponto cantado|baianos|boiadeiro|marinheiro)/,
+  AFR: /\b(candombl|afro|ioruba|yoruba|nag[oô]|ifa\b|odu|axe\b|orix)/, ESP: /\b(espirit|kardec|mediunidade|medium|perispirito|reencarna|chico xavier|evangelho segundo)/, ESO: /\b(esoter|magia|magico|tarot|taro\b|astrolog|cabala|chakra|cristais|wicca|ocult|runas|feiti)/,
+  FIL: /\b(filosof)/, HIS: /\b(historia|historico)/, BIO: /\b(biografia|memorias)/, POE: /\b(poesia|poemas?)/, INF: /\b(infantil|criancas?)/, AUT: /\b(autoajuda|auto-ajuda|afirmac|prosperidade|lei da atracao|autoestima|autoconhecimento)/ };
+function generoPorPalavras(principal, texto) {
+  const ok = Object.keys(GEN_PALAVRAS).filter(g => (S.generos || []).some(x => x.sigla === g)), a = norm(principal), t = norm(texto);
+  const g1 = ok.find(g => GEN_PALAVRAS[g].test(a)); if (g1) return g1; // título, nome do arquivo e o que vier entre colchetes
+  let melhor = '', n = 0; ok.forEach(g => { const m = (t.match(new RegExp(GEN_PALAVRAS[g].source, 'g')) || []).length; if (m > n) { n = m; melhor = g; } });
+  return n >= 2 ? melhor : '';
+}
+const nomeArquivo = f => { const t = nomeArq0(f); return t === t.toLowerCase() ? tituloBonito(t.toUpperCase()) : tituloBonito(t); }; // nome todo em minúsculas ou maiúsculas vira "Título Bonito"
+const nomeArq0 = f => f.name.replace(/\.pdf$/i, '').replace(/[_]+/g, ' ').replace(/\[[^\]]*\]|\([^)]*\)/g, ' ').replace(/^[\s\-–—.]+|[\s\-–—.]+$/g, '').replace(/\s{2,}/g, ' ').trim();
+function linhaLote(r, i) {
+  const gens = (S.generos || []).slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  return `<tr data-i="${i}" class="${r.estado === 'ok' ? 'lote-ok' : r.estado === 'erro' ? 'lote-erro' : ''}"><td><input type="checkbox" data-ch="loteMarca" data-i="${i}" ${r.marcado ? 'checked' : ''} ${r.estado === 'ok' || r.bloqueio ? 'disabled' : ''} aria-label="Enviar ${esc(r.titulo)}"></td>
+    <td><span class="dig-capa">${r.capa ? `<img src="${r.capa}" alt="">` : ic('tablet')}</span></td>
+    <td><input class="lote-in" data-in="loteTit" data-i="${i}" value="${esc(r.titulo)}" aria-label="Título"><span class="small muted">${esc(r.arquivo)} · ${MB(r.tamanho)}${r.isbn ? ' · ISBN ' + r.isbn : ''}</span></td>
+    <td><input class="lote-in" data-in="loteAut" data-i="${i}" value="${esc(r.autor)}" aria-label="Autor"></td>
+    <td><select data-ch="loteGen" data-i="${i}" aria-label="Gênero"><option value="">—</option>${gens.map(g => `<option value="${g.sigla}" ${r.genero === g.sigla ? 'selected' : ''}>${esc(g.nome)}</option>`).join('')}</select></td>
+    <td><select data-ch="loteAutz" data-i="${i}" aria-label="Autorização"><option value="">Escolha…</option>${['dominio', 'propria'].map(k => `<option value="${k}" ${r.autorizacao === k ? 'selected' : ''}>${AUTORIZ[k]}</option>`).join('')}</select></td>
+    <td><label class="check small"><input type="checkbox" data-ch="loteAssoc" data-i="${i}" ${r.soAssociados ? 'checked' : ''}> Só associados</label></td>
+    <td class="small" id="lote-st-${i}">${r.status}</td></tr>`;
+}
+const loteResumo = () => { const L = UI.lote, m = L.linhas.filter(r => r.marcado && r.estado !== 'ok').length, ok = L.linhas.filter(r => r.estado === 'ok').length; const el = $('#lote-res'); if (el) el.textContent = `${L.linhas.length} arquivo(s) lido(s)${L.lendo ? ' — lendo…' : ''} · ${m} marcado(s) para enviar${ok ? ` · ${ok} enviado(s)` : ''}`; const b = $('#lote-enviar'); if (b) b.disabled = !m || L.lendo || L.enviando; };
+async function lerLote(files) {
+  const L = UI.lote; L.lendo = true; loteResumo();
+  if (!window.pdfjsLib) await scriptUnico(PDFJS_APP + 'pdf.min.js'); pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_APP + 'pdf.worker.min.js';
+  const existentes = new Set((S.digitais || []).map(d => norm(d.titulo)));
+  for (const f of files) {
+    if (UI.lote !== L) return;
+    const r = { arquivo: f.name, tamanho: f.size, file: f, titulo: nomeArquivo(f), autor: '', ano: '', genero: '', isbn: '', capa: '', obraId: '', autorizacao: L.autz, soAssociados: L.assoc, marcado: true, estado: '', status: '' };
+    if (!/\.pdf$/i.test(f.name)) { r.bloqueio = true; r.marcado = false; r.status = 'Não é PDF'; }
+    else if (f.size > 20 * 1024 * 1024) { r.bloqueio = true; r.marcado = false; r.status = `Acima de 20 MB: comprima e envie depois`; }
+    else {
+      let texto = '';
+      try {
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await f.arrayBuffer()), isEvalSupported: false }).promise;
+        const info = ((await pdf.getMetadata().catch(() => ({}))) || {}).info || {}, tMeta = String(info.Title || '').trim(), aMeta = String(info.Author || '').trim();
+        try { r.capa = await capaDaPagina(pdf); } catch (e) { }
+        for (let p = 1; p <= Math.min(pdf.numPages, 3); p++) { try { texto += (await (await pdf.getPage(p)).getTextContent()).items.map(x => (x.str || '') + (x.hasEOL ? '\n' : ' ')).join('') + '\n'; } catch (e) { } }
+        pdf.destroy();
+        const mi = texto.replace(/[‐-―]/g, '-').match(/97[89](?:[-\s]?\d){10}/); if (mi) { r.isbn = mi[0].replace(/\D/g, ''); try { const lv = (await buscarIsbn(r.isbn)).res; if (lv) { r.titulo = lv.titulo || r.titulo; r.autor = lv.autor || ''; r.ano = lv.ano || ''; } } catch (e) { } }
+        if (!r.autor && aMeta && !/^(user|usu[aá]rio|admin|autor|unknown)$/i.test(aMeta)) r.autor = aMeta;
+        if (!r.isbn && tituloUtil(tMeta) && tMeta.length > 4 && !/^[\w-]+$/.test(tMeta)) r.titulo = tMeta;
+        r.status = texto.replace(/\s/g, '').length < 40 ? 'Lido (escaneado: sem texto)' : 'Lido';
+      } catch (e) { r.status = 'Não consegui ler: confira o arquivo'; }
+      r.genero = generoPorPalavras(`${r.titulo} ${f.name}`, texto);
+      const ob = (S.obras || []).find(o => (r.isbn && digits(o.isbn) === r.isbn) || norm(o.titulo) === norm(r.titulo)); if (ob) r.obraId = ob.id;
+      if (existentes.has(norm(r.titulo)) || L.linhas.some(x => norm(x.titulo) === norm(r.titulo))) { r.marcado = false; r.status = 'Parece repetido (mesmo título): desmarcado'; }
+    }
+    L.linhas.push(r); const tb = $('#lote-tb'); if (tb) tb.insertAdjacentHTML('beforeend', linhaLote(r, L.linhas.length - 1)); loteResumo();
+  }
+  L.lendo = false; loteResumo();
+}
+Object.assign(ACT, {
+  digLote() {
+    UI.lote = { linhas: [], autz: 'dominio', assoc: false, lendo: false, enviando: false };
+    openModal(`<h2>Importar vários PDFs</h2>
+      <p class="small">Escolha os arquivos (pode selecionar todos de uma pasta). O sistema lê cada PDF neste computador: título, autor, ISBN, capa da 1ª página e um gênero sugerido por palavras-chave. Confira a tabela e envie.</p>
+      <div class="note warn"><span><b>Só publique o que pode ser publicado:</b> domínio público (autor falecido há mais de 70 anos), publicação própria da casa ou com autorização por escrito. Confira a autorização de cada livro antes de enviar.</span></div>
+      <div class="inline wrap" style="margin:10px 0"><label class="btn primary">${ic('plus')} Escolher PDFs<input type="file" accept="application/pdf,.pdf" multiple hidden data-ch="loteArq"></label>
+        <label class="small">Autorização para os novos <select data-ch="loteAutzPad"><option value="dominio" selected>${AUTORIZ.dominio}</option><option value="propria">${AUTORIZ.propria}</option><option value="">Escolher em cada um</option></select></label>
+        <label class="check small"><input type="checkbox" data-ch="loteAssocPad"> Só associados (novos)</label></div>
+      <p class="small muted" id="lote-res">Nenhum arquivo escolhido.</p>
+      <div class="lote-wrap"><table class="lote"><thead><tr><th><span class="sr">Enviar</span></th><th>Capa</th><th>Título</th><th>Autor</th><th>Gênero</th><th>Autorização</th><th></th><th>Situação</th></tr></thead><tbody id="lote-tb"></tbody></table></div>
+      <div class="modal-actions"><button class="btn" data-act="close">Fechar</button><button class="btn primary" data-act="loteEnviar" id="lote-enviar" disabled>Enviar os marcados</button></div>`);
+    const m = $('#modal-root .modal'); if (m) m.classList.add('modal-lote');
+  },
+  loteEnviar() {
+    const L = UI.lote; if (!L || L.enviando) return;
+    const fila = L.linhas.map((r, i) => [r, i]).filter(([r]) => r.marcado && r.estado !== 'ok');
+    const sem = fila.filter(([r]) => !r.titulo.trim() || !r.autorizacao); if (sem.length) { toast(`${plural(sem.length, 'livro marcado está', 'livros marcados estão')} sem título ou sem autorização. Confira as linhas destacadas.`, 'bad'); sem.forEach(([, i]) => { const tr = $(`#lote-tb tr[data-i="${i}"]`); if (tr) tr.classList.add('lote-erro'); }); return; }
+    L.enviando = true; loteResumo(); let feitos = 0, erros = 0;
+    run(async () => {
+      for (const [r, i] of fila) {
+        if (UI.lote !== L) break; const st = $(`#lote-st-${i}`), n = `Livro ${feitos + erros + 1} de ${fila.length}`;
+        try {
+          const res = await api('dig.salvar', { titulo: r.titulo.trim(), autor: r.autor.trim(), ano: r.ano, genero: r.genero, obraId: r.obraId, descricao: '', autorizacao: r.autorizacao, autorizacaoObs: '', soAssociados: r.soAssociados, capa: r.capa, ativo: true }, { msg: `${n}: salvando…` });
+          const PARTE = 3 * 1024 * 1024, total = Math.ceil(r.file.size / PARTE), envio = 'up' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+          for (let k = 0; k < total; k++) await api('dig.upload', { id: res.id, envio, parte: k, total, dados: await blobB64(r.file.slice(k * PARTE, (k + 1) * PARTE)) }, { msg: `${n}: enviando o PDF${total > 1 ? ` (parte ${k + 1} de ${total})` : ''}…` });
+          r.estado = 'ok'; r.status = 'Enviado'; r.file = null; feitos++;
+        } catch (e) { r.estado = 'erro'; r.status = 'Erro: ' + esc(e.message); erros++; }
+        const tr = $(`#lote-tb tr[data-i="${i}"]`); if (tr) tr.outerHTML = linhaLote(r, i); if (st) st.innerHTML = r.status; loteResumo();
+      }
+      L.enviando = false; loteResumo(); render(); toast(`${plural(feitos, 'livro enviado', 'livros enviados')}${erros ? ` · ${erros} com erro (ficaram na tabela para tentar de novo)` : ''}`, erros ? 'bad' : 'ok');
+    });
+  },
+});
+Object.assign(CHG, {
+  loteArq(el) { const fs = [...el.files]; el.value = ''; if (!fs.length || !UI.lote) return; lerLote(fs).catch(e => { UI.lote.lendo = false; loteResumo(); toast('Não foi possível ler os PDFs: ' + e.message, 'bad'); }); },
+  loteAutzPad(el) { if (UI.lote) UI.lote.autz = el.value; },
+  loteAssocPad(el) { if (UI.lote) UI.lote.assoc = el.checked; },
+  loteMarca(el) { const r = UI.lote && UI.lote.linhas[+el.dataset.i]; if (r) { r.marcado = el.checked; loteResumo(); } },
+  loteGen(el) { const r = UI.lote && UI.lote.linhas[+el.dataset.i]; if (r) r.genero = el.value; },
+  loteAutz(el) { const r = UI.lote && UI.lote.linhas[+el.dataset.i]; if (r) { r.autorizacao = el.value; el.closest('tr').classList.remove('lote-erro'); } },
+  loteAssoc(el) { const r = UI.lote && UI.lote.linhas[+el.dataset.i]; if (r) r.soAssociados = el.checked; },
+});
+INP.loteTit = el => { const r = UI.lote && UI.lote.linhas[+el.dataset.i]; if (r) r.titulo = el.value; };
+INP.loteAut = el => { const r = UI.lote && UI.lote.linhas[+el.dataset.i]; if (r) r.autor = el.value; };
