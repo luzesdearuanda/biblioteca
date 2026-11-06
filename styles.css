@@ -472,3 +472,8 @@ td .pill{white-space:normal;text-align:left}
 .cf-row{display:grid;gap:6px;padding:10px;border:1px solid var(--line);border-radius:10px}
 .cf-row .capas-grade{margin-top:0}
 .cf-row .capa-op{width:52px;height:76px}
+/* versão 1.10.1: últimos livros digitais no Início */
+.dig-ult{display:grid;gap:8px}
+.dig-ult-i{display:flex;gap:12px;align-items:center;text-align:left;background:none;border:1px solid var(--line);border-radius:10px;padding:8px;cursor:pointer;color:inherit;font:inherit}
+.dig-ult-i:hover{border-color:var(--brand)}
+.dig-ult-i>span:last-child{display:grid;gap:2px}

@@ -294,3 +294,5 @@ body.lp :focus-visible{outline:3px solid var(--lp-foco,#2563eb);outline-offset:2
 :root[data-theme="contrast"] .lp-side,:root[data-theme="contrast"] .lp-top,:root[data-theme="contrast"] .lp-bottom{background:#000!important;color:#fff;border-color:#fff}
 :root[data-theme="contrast"] .pill,:root[data-theme="contrast"] .lp-tag{background:#000!important;color:#ffd400!important;border:1px solid #ffd400}
 :root[data-theme="contrast"] .lp-waves{display:none}
+/* versão 1.10.1: livro digital nos Destaques */
+.lp-tag.d{background:var(--lp-green);color:var(--lp-soon-fg)}

@@ -553,7 +553,12 @@ VIEWS.inicio = {
         ${loanRows(att, { compact: true, empty: 'Nenhum atraso ou vencimento próximo.' })}</section>
       <section class="panel"><div class="panel-head"><h2>Empréstimos recentes</h2><button class="btn sm ghost" data-act="go" data-v="emprestados" data-f="todos">Histórico</button></div>
         ${loanRows(recent, { compact: true })}</section>
-    </div>`;
+    </div>
+    ${(S.digitais || []).length ? (() => { // versão 1.10.1: resumo da Biblioteca Virtual no Início
+      const ativos = S.digitais.filter(d => d.ativo).length, lt = Object.values(S.leiturasDig || {}).reduce((a, b) => a + b, 0), ult = [...S.digitais].sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm))).slice(0, 5);
+      return `<section class="panel" style="margin-top:16px"><div class="panel-head"><h2>Biblioteca Virtual</h2><button class="btn sm ghost" data-act="go" data-v="virtual">Ver todos</button></div>
+        <div class="kpis">${kpi('Livros digitais', ativos, S.digitais.length > ativos ? `${S.digitais.length - ativos} desativado(s)` : 'todos no portal')}${kpi('Leituras no mês', S.leiturasDigMes || 0, 'livros abertos no portal')}${kpi('Leituras no total', lt, 'desde o início')}</div>
+        <h3 class="small muted" style="margin:14px 0 6px">Últimos cadastrados</h3><div class="dig-ult">${ult.map(d => `<button class="dig-ult-i" data-act="digEditar" data-id="${d.id}"><span class="dig-capa">${d.capa ? `<img src="${esc(d.capa)}" alt="">` : ic('tablet')}</span><span><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || 'Autor não informado')} · ${d.ativo ? '' : 'desativado · '}${plural((S.leiturasDig || {})[d.id] || 0, 'leitura', 'leituras')}</span></span></button>`).join('')}</div></section>`; })() : ''}`;
   }
 };
 
@@ -2485,15 +2490,13 @@ async function lerPdfCadastro(f) {
   let livro = null; if (mi) { u.isbn = mi[0].replace(/\D/g, ''); try { livro = (await buscarIsbn(u.isbn)).res; } catch (e) { } }
   pre('#dg-tit', (livro && livro.titulo) || (tituloUtil(tMeta) ? tMeta : ''), 'título'); pre('#dg-aut', (livro && livro.autor) || (aMeta && !/^(user|usu[aá]rio|admin|autor)$/i.test(aMeta) ? aMeta : ''), 'autor'); pre('#dg-ano', livro && livro.ano, 'ano');
   let obs = temTexto ? '' : ' O PDF parece escaneado (só imagem): não há texto para ler.';
-  const falta = ['#dg-tit', '#dg-aut', '#dg-ano', '#dg-desc'].some(s => !$(s).value.trim()) || !$('#dg-gen').value;
-  if (falta && temTexto) {
-    if (S.geminiOk) { nota('Pedindo sugestões ao Gemini…'); try { const g = await api('dig.sugerir', { texto, meta: [tMeta && 'Título: ' + tMeta, aMeta && 'Autor: ' + aMeta].filter(Boolean).join('; ') }, { msg: 'Pedindo sugestões ao Gemini…' });
-      if (UI.dig !== u) return; pre('#dg-tit', g.titulo, 'título'); pre('#dg-aut', g.autor, 'autor'); pre('#dg-ano', g.ano, 'ano'); pre('#dg-desc', g.descricao, 'descrição'); if (g.genero && !$('#dg-gen').value) { $('#dg-gen').value = g.genero; feitos.push('gênero'); } } catch (e) { obs += ` O Gemini não respondeu agora (${esc(e.message)}).`; } }
-    else obs += ' A descrição e o gênero podem ser sugeridos pelo Gemini quando a chave estiver cadastrada em Configurações.';
-  }
+  // versão 1.10.1: o Gemini só é chamado pelo botão, em segundo plano (o plano gratuito às vezes demora minutos)
+  u.texto = temTexto ? texto : ''; u.meta = [tMeta && 'Título: ' + tMeta, aMeta && 'Autor: ' + aMeta].filter(Boolean).join('; ');
+  if (temTexto && !S.geminiOk) obs += ' A descrição e o gênero podem ser sugeridos pelo Gemini quando a chave estiver cadastrada em Configurações.';
   const ob = S.obras.find(o => (u.isbn && digits(o.isbn) === u.isbn) || (norm(o.titulo) && norm(o.titulo) === norm($('#dg-tit').value)));
   if (ob && !$('#dg-obra').value) { $('#dg-obra').value = ob.id; feitos.push('ligação com o catálogo físico'); }
   nota(`${feitos.length ? `<b>Preenchido a partir do PDF: ${feitos.join(', ')}.</b> Revise antes de salvar.` : 'O PDF não trouxe nada novo para preencher.'}${u.isbn ? ` ISBN encontrado: ${u.isbn}.` : ''}${obs}`);
+  if (u.texto && S.geminiOk) $('#dg-auto').insertAdjacentHTML('beforeend', `<div id="dg-gem" style="margin-top:8px"><button type="button" class="btn sm" data-act="digSugerir">Sugerir descrição e gênero com o Gemini</button></div>`);
   if ($('#dg-tit').value.trim() || u.isbn) ACT.digCapasNet();
 }
 function capasFaltamLinha(o) {
@@ -2515,6 +2518,16 @@ Object.assign(ACT, {
     if (!titulo.trim() && !UI.dig.isbn) { toast('Preencha o título primeiro.', 'bad'); return; }
     $('#dg-capas').innerHTML = '<p class="small muted" style="margin:6px 0 0">Procurando capas na internet…</p>'; const u = UI.dig;
     buscarCapas({ isbn: u.isbn, titulo: titulo.trim(), autor }).then(l => { const b = $('#dg-capas'); if (b && UI.dig === u) { b.innerHTML = capasGrade(l, 'digCapaUsar'); marcaCapa('#dg-capas', u.capa); } });
+  },
+  digSugerir(t) {
+    const u = UI.dig; if (!u || !u.texto) { toast('Este PDF não tem texto para o Gemini ler.', 'bad'); return; }
+    const box = $('#dg-gem'); box.innerHTML = '<div class="note info"><span>O Gemini está lendo o PDF… Pode continuar preenchendo e até salvar: se a sugestão chegar, ela só completa os campos vazios.</span></div>';
+    const fim = new Promise((_, rej) => setTimeout(() => rej(new Error('O Gemini demorou mais de 40 segundos (o plano gratuito às vezes fica lento).')), 40000));
+    Promise.race([api('dig.sugerir', { texto: u.texto, meta: u.meta }, { silent: true }), fim]).then(g => {
+      if (UI.dig !== u || !$('#dg-gem')) return; const feitos = [], pre = (sel, v, rot) => { const el = $(sel); if (el && v && !el.value.trim()) { el.value = v; feitos.push(rot); } };
+      pre('#dg-tit', g.titulo, 'título'); pre('#dg-aut', g.autor, 'autor'); pre('#dg-ano', g.ano, 'ano'); pre('#dg-desc', g.descricao, 'descrição'); if (g.genero && !$('#dg-gen').value) { $('#dg-gen').value = g.genero; feitos.push('gênero'); }
+      $('#dg-gem').innerHTML = `<div class="note ok"><span>${feitos.length ? `<b>O Gemini preencheu: ${feitos.join(', ')}.</b> Revise antes de salvar.` : 'O Gemini não trouxe nada novo: os campos já estavam preenchidos.'}</span></div>`;
+    }).catch(e => { if (UI.dig !== u || !$('#dg-gem')) return; $('#dg-gem').innerHTML = `<div class="note warn"><span>${esc(e.message)} Preencha à mão ou tente de novo daqui a pouco.</span><button type="button" class="btn sm" data-act="digSugerir" style="margin-top:6px">Tentar de novo</button></div>`; });
   },
   digCapaUsar(t) { UI.dig.capa = t.dataset.url; capaPrev('#dg-capa-prev', UI.dig.capa, 'tablet'); marcaCapa('#dg-capas', UI.dig.capa); },
   digCapaPdf() { if (!UI.dig.capaPdf) return; UI.dig.capa = UI.dig.capaPdf; capaPrev('#dg-capa-prev', UI.dig.capa, 'tablet'); marcaCapa('#dg-capas', ''); },
