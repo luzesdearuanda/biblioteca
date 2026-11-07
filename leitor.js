@@ -17,6 +17,7 @@ const LOGO = 'logo.png';
 /* ---------- ícones e ilustrações (SVG) ---------- */
 const sv = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const IC = {
+  flag: sv('<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>'),
   home: sv('<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>'),
   book: sv('<path d="M3 5.5C5.5 4 8.5 4 12 6c3.5-2 6.5-2 9-.5V19c-2.5-1.5-5.5-1.5-9 .5-3.5-2-6.5-2-9-.5z"/><path d="M12 6v13.5"/>'),
   pdf: sv('<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M8.5 13h1.2a1.2 1.2 0 0 1 0 2.4H8.5V13v4.5M13 13v4.5h.8a1.8 1.8 0 0 0 0-4.5zM17.5 13H16v4.5M16 15.2h1.3"/>', 1.5),
@@ -74,10 +75,10 @@ async function api(action, payload = {}, msg) {
   } finally { busy(false); }
 }
 async function run(fn) { try { await fn(); } catch (e) { if (e.code === 'AUTH' && ls.get('bibLeitor')) { sair(e.message); return; } toast(e.message, 'bad'); } }
-function sair(msg) { ttsFechar(); enviarPos(true); ls.set('bibLeitor', null); D = null; C = null; DG = null; LV = null; V = 'entrar'; PG = 'inicio'; render(); if (msg) toast(msg, 'bad'); }
+function sair(msg) { ttsFechar(); enviarPos(true); enviarFila(true); ls.set('bibLeitor', null); D = null; C = null; DG = null; LV = null; V = 'entrar'; PG = 'inicio'; render(); if (msg) toast(msg, 'bad'); }
 const token = () => ls.get('bibLeitor');
-async function carregar() { D = await api('leitor.dados', { token: token() }, 'Carregando…'); V = 'app'; render(); }
-const irPara = pg => { PG = pg; MENU = false; FC.id = ''; F.id = ''; FD.id = ''; if (pg !== 'virtual') { ttsFechar(); enviarPos(true); LV = null; } if (pg === 'virtual' && !DG) { run(async () => { DG = await api('leitor.digitais', { token: token() }, 'Carregando os livros digitais…'); render(); focoTela(); }); return; } if (pg === 'cantigas' && !C) { run(async () => { C = await api('leitor.cantigas', { token: token() }, 'Carregando as cantigas…'); render(); focoTela(); }); return; } render(); focoTela(); };
+async function carregar() { D = await api('leitor.dados', { token: token() }, 'Carregando…'); V = 'app'; render(); regEntrada(); }
+const irPara = pg => { if (pg !== PG) reg('pagina', 'portal', '', PG_NOME[pg] || pg); PG = pg; MENU = false; FC.id = ''; F.id = ''; FD.id = ''; if (pg !== 'virtual') { ttsFechar(); enviarPos(true); LV = null; } if (pg === 'virtual' && !DG) { run(async () => { DG = await api('leitor.digitais', { token: token() }, 'Carregando os livros digitais…'); render(); focoTela(); }); return; } if (pg === 'cantigas' && !C) { run(async () => { C = await api('leitor.cantigas', { token: token() }, 'Carregando as cantigas…'); render(); focoTela(); }); return; } render(); focoTela(); };
 
 /* ---------- login ---------- */
 const card = body => `<div class="login"><div class="login-card">
@@ -255,13 +256,13 @@ function digitalTela(d) {
         ${p ? `<p class="small">Você parou na página ${p.pag}${p.total ? ` de ${p.total}` : ''}.</p>${progresso(d)}` : ''}
         <div class="ct-bts ct-bts-det"><button class="lp-btn ct-b" data-act="lvAbrir" data-id="${d.id}">${IC.pdf}<span>${lerRot(d)}</span></button>${p && p.pag > 1 ? `<button class="lp-btn light ct-b" data-act="lvAbrir" data-id="${d.id}" data-inicio="1">${IC.ref}<span>Começar do início</span></button>` : ''}<button class="lp-btn light ct-b" data-act="lvAbrir" data-id="${d.id}" data-ouvir="1">${IC.fone}<span>Ouvir o livro</span></button></div>
         ${d.descricao ? `<h2 class="bk-sub">Sobre o livro</h2><p class="bk-texto">${esc(d.descricao).replace(/\n/g, '<br>')}</p>` : ''}
-        <dl class="ct-info">${dados.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+        <dl class="ct-info">${dados.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${probBt('livro', d.id, d.titulo)}
         <p class="small muted">${esc(AUTZ_TXT[d.autorizacao] || '')} A leitura é feita só nesta tela e cada página mostra o nome de quem está lendo.</p>
         ${fis ? `<div class="lp-panel bk-tambem">${IC.book}<div><b>Também no acervo físico</b><span class="small muted">${dispTxt(fis)} para retirada.</span></div><button class="lp-btn light ct-b" data-act="oVer" data-id="${fis.id}">${IC.book}<span>Ver no catálogo</span></button></div>` : ''}</div></article>`;
 }
 function virtual() {
   if (!DG) return cabecalho('Biblioteca Virtual') + '<p class="muted">Carregando…</p>';
-  if (LV) { const d = LV.d; return `<div class="lv-topo"><button class="btn sm ghost" data-act="lvFechar">← ${FD.id ? 'Voltar ao livro' : 'Voltar aos livros'}</button><div class="lv-tit"><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || '')}</span></div></div>
+  if (LV) { const d = LV.d; return `<div class="lv-topo"><button class="btn sm ghost" data-act="lvFechar">← ${FD.id ? 'Voltar ao livro' : 'Voltar aos livros'}</button><div class="lv-tit"><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || '')}</span></div>${probBt('livro', d.id, d.titulo, true)}</div>
       ${LV.pdf ? `<div class="lv-barra" role="toolbar" aria-label="Leitura"><button class="lp-btn light" data-act="lvPag" data-d="-1" aria-label="Página anterior">${IC.left}</button><span class="lv-ind"><input id="lv-ir" inputmode="numeric" value="${LV.pag}" aria-label="Página atual (digite para ir)"> de ${LV.total}</span><button class="lp-btn light" data-act="lvPag" data-d="1" aria-label="Próxima página">${IC.right}</button>
         <span class="lv-zoom"><button class="lp-btn light lv-ouvir" data-act="ttsAbrir" aria-pressed="${TTS.on}" aria-label="Ouvir em voz alta">${IC.fone}<span>Ouvir</span></button><button class="lp-btn light lv-modo" data-act="lvModo" title="Trocar o modo de leitura">${LV.modo === 'rolagem' ? IC.pagina + '<span>Página a página</span>' : IC.rolar + '<span>Rolagem contínua</span>'}</button><button class="lp-btn light" data-act="lvZoom" data-d="-1" aria-label="Diminuir o tamanho da página">−</button><button class="lp-btn light" data-act="lvZoom" data-d="1" aria-label="Aumentar o tamanho da página">+</button></span>
         <div id="lv-tts" class="lv-tts-box">${ttsPainel()}</div></div>
@@ -280,15 +281,15 @@ function virtual() {
 /* ---------- onde parei (versão 1.9): fica no servidor, para continuar em qualquer aparelho ---------- */
 let POS_PEND = null, posTimer = null;
 const agoraTxt = () => { const d = new Date(); return `${hoje()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
-function enviarPos(sair) {
-  clearTimeout(posTimer); const p = POS_PEND; POS_PEND = null; if (!p || !token()) return;
+function enviarPos(sair, timer) {
+  if (!timer) fimLeitura(); clearTimeout(posTimer); const p = POS_PEND; POS_PEND = null; if (!p || !token()) return;
   try { fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify({ action: 'leitor.posicao', payload: Object.assign({ token: token() }, p) }), redirect: 'follow', keepalive: !!sair }).catch(() => { }); } catch (e) { }
 }
 function guardarPos() {
-  if (!LV || !LV.pdf || !DG) return; const id = LV.d.id, ant = posDe(id);
+  if (!LV || !LV.pdf || !DG) return; const id = LV.d.id, ant = posDe(id); if (LV.vistas) LV.vistas.add(LV.pag);
   if (ant && ant.pag === LV.pag && ant.total === LV.total) return;
   (DG.pos = DG.pos || {})[id] = { pag: LV.pag, total: LV.total, em: agoraTxt() };
-  POS_PEND = { id, pag: LV.pag, total: LV.total }; clearTimeout(posTimer); posTimer = setTimeout(() => enviarPos(), 4000);
+  POS_PEND = { id, pag: LV.pag, total: LV.total }; clearTimeout(posTimer); posTimer = setTimeout(() => enviarPos(false, true), 4000);
 }
 addEventListener('pagehide', () => enviarPos(true));
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') enviarPos(true); });
@@ -383,6 +384,7 @@ async function abrirLivro(d, op = {}) {
   if (posDe(d.id)) ult = posDe(d.id).pag; if (op.inicio) ult = 1;
   const v1 = (await pdf.getPage(1)).getViewport({ scale: 1 });
   Object.assign(LV, { pdf, total: pdf.numPages, pag: Math.min(Math.max(1, ult), pdf.numPages), ratio: `${Math.round(v1.width)}/${Math.round(v1.height)}` }); render(); aviso(`Livro aberto na página ${LV.pag} de ${LV.total}`);
+  LV.ini = Date.now(); LV.vistas = new Set([LV.pag]); reg('abrir', 'livro digital', d.id, d.titulo, 'página ' + LV.pag);
   if (op.ouvir) { TTS.on = true; ttsAtualizar(); ttsPlay(); }
 }
 // marca d'água (versão 1.7.1): logo do terreiro bem clarinho no centro + nome, parte do CPF e data no rodapé
@@ -443,9 +445,11 @@ const FAQ = [
   ['Qual o prazo para devolver?', 'O prazo aparece em Meu Perfil, em "Comigo agora". Se precisar de mais tempo, fale com a biblioteca para renovar antes do vencimento.'],
   ['Esqueci a minha senha.', 'Na tela de entrada, use "Primeiro acesso ou esqueci a senha": enviamos um código para o seu e-mail. Sem e-mail no cadastro, peça o código a um operador da biblioteca.'],
   ['Posso baixar ou imprimir os livros digitais?', 'Não. Os livros da Biblioteca Virtual são lidos só aqui no portal, e cada página mostra o nome de quem está lendo. O portal lembra a última página que você leu em cada livro.'],
+  ['O portal registra o que eu acesso?', 'Sim. Para cuidar do acervo, a biblioteca registra as entradas no portal e os livros, cantigas e páginas abertos, guardados por 12 meses. Só os administradores da biblioteca veem esses registros, que não são compartilhados com ninguém.'],
   ['Quem vê as cantigas?', 'As cantigas são só para os associados da casa, com o cadastro em dia na Secretaria.'],
 ];
 const ajuda = () => `${cabecalho('Ajuda', 'Dúvidas mais comuns sobre o portal da biblioteca.')}<section class="lp-panel lp-faq">${FAQ.map(([q, a]) => `<details><summary>${q}</summary><p>${a}</p></details>`).join('')}</section>
+  <section class="lp-panel"><h2>Encontrou um erro?</h2><p class="muted">Conte para a biblioteca o que não funcionou: uma página que não abre, um botão, um livro ou uma cantiga com problema.</p>${probBt('portal', '', 'Portal')}</section>
   <section class="lp-panel"><h2>Ainda com dúvida?</h2><p class="muted">Fale com a biblioteca pelo WhatsApp.</p><a class="lp-btn green" href="https://wa.me/${WHATS}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre o portal da Biblioteca Luzes de Aruanda.')}" target="_blank" rel="noopener">Conversar no WhatsApp ${IC.arrow}</a></section>`;
 
 /* ---------- cantigas (só associados) — versão 1.8: painel de seções, filtros, cards com Assistir/Ouvir/Ler letra e tela completa ---------- */
@@ -498,7 +502,7 @@ function cantigaTela(c) {
   const info = `<dl class="ct-info">${c.secoes.length ? `<dt>Seções</dt><dd>${c.secoes.map(id => esc(cSecNome(id))).join(' · ')}</dd>` : ''}${c.toqueId ? `<dt>Toque</dt><dd>${esc(cToq(c.toqueId))}</dd>` : ''}<dt>Origem</dt><dd>${ORIG[c.origem] || '—'}${c.autor ? ': ' + esc(c.autor) : ''}</dd>${c.obs ? `<dt>Observações</dt><dd>${esc(c.obs)}</dd>` : ''}</dl>`;
   const outros = [['assistir', IC.play, 'Assistir', !!c.youtube], ['ouvir', IC.fone, 'Ouvir', !!(c.audio || c.youtube)], ['letra', IC.letra, 'Ler letra', !!c.letra]].filter(([m, , , ok]) => ok && m !== modo)
     .map(([m, ic, rot]) => `<button class="lp-btn light ct-b" data-act="cAbrir" data-id="${c.id}" data-modo="${m}">${ic}<span>${rot}</span></button>`).join('');
-  const topo = `<div class="ct-topo"><button class="btn sm ghost" data-act="cVoltar">← Voltar às cantigas</button><div class="ct-bts ct-bts-det">${outros}${modo ? `<button class="lp-btn light ct-b" data-act="cVer" data-id="${c.id}">${IC.camadas}<span>Ver tudo</span></button>` : ''}</div></div>`;
+  const topo = `<div class="ct-topo"><button class="btn sm ghost" data-act="cVoltar">← Voltar às cantigas</button><div class="ct-bts ct-bts-det">${outros}${modo ? `<button class="lp-btn light ct-b" data-act="cVer" data-id="${c.id}">${IC.camadas}<span>Ver tudo</span></button>` : ''}${probBt('cantiga', c.id, c.titulo, true)}</div></div>`;
   if (modo === 'letra') return `${topo}<div class="ct-so ct-so-letra" id="ct-letra"><h1>${esc(c.titulo)}</h1>${letra}</div>`;
   if (modo === 'assistir' && c.youtube) return `${topo}<div class="ct-so ct-so-video"><h1>${esc(c.titulo)}</h1>${ytGrande(true)}</div>`;
   if (modo === 'ouvir') return `${topo}<div class="ct-so ct-so-audio"><h1>${esc(c.titulo)}</h1>${c.audio ? '<div class="ct-audio"><div id="c-play"></div></div>' : ouvirYt ? ytMini : ''}</div>`;
@@ -527,7 +531,8 @@ function cantigas() {
       <div id="clista" class="cant-lista">${listaCantigas()}</div></div></div>`;
 }
 async function ouvirAudio(id) {
-  const r = await api('leitor.cantigaAudio', { token: token(), id }, 'Carregando o áudio…'), el = $('#c-play');
+  let r; try { r = await api('leitor.cantigaAudio', { token: token(), id }, 'Carregando o áudio…'); } catch (e) { const c = C && C.cantigas.find(x => x.id === id); autoProb('cantiga', id, c ? c.titulo : '', 'O áudio não tocou', e); throw e; }
+  const el = $('#c-play');
   if (el) el.innerHTML = `<audio controls autoplay src="data:${r.mime};base64,${r.dados}" style="width:100%"></audio><p class="small muted">O áudio continua tocando com a tela apagada.</p>`;
 }
 
@@ -547,19 +552,19 @@ const ACT = {
   tema: t => { TEMA.set(t.dataset.t); render(); },
   menuFechar: (t, e) => { if (e.target === t) { MENU = false; render(); } },
   sair: () => sair(),
-  lvAbrir: t => { const d = DG.digitais.find(x => x.id === t.dataset.id); if (!d) return; if (t.dataset.ouvir) ttsDestravar(); run(() => abrirLivro(d, { inicio: !!t.dataset.inicio, ouvir: !!t.dataset.ouvir }).catch(e => { LV = null; render(); throw e; })); },
+  lvAbrir: t => { const d = DG.digitais.find(x => x.id === t.dataset.id); if (!d) return; if (t.dataset.ouvir) ttsDestravar(); run(() => abrirLivro(d, { inicio: !!t.dataset.inicio, ouvir: !!t.dataset.ouvir }).catch(e => { LV = null; render(); autoProb('livro', d.id, d.titulo, 'O livro não abriu', e); throw e; })); },
   lvFechar: () => { ttsFechar(); enviarPos(); const id = LV && LV.d.id; if (LV && LV.obs) { LV.obs.disconnect(); LV.vis.disconnect(); } LV = null; render(); if (FD.id) focoTela(); else focoVolta('dig-' + id); },
   lvPag: t => { const p = Math.min(Math.max(1, LV.pag + +t.dataset.d), LV.total); if (TTS.lendo) { TTS.gen++; speechSynthesis.cancel(); TTS.partes = []; ttsLer(p); } else irPag(p); },
   ttsAbrir: () => { if (TTS.on) ttsFechar(); else { TTS.on = true; ttsAtualizar(); const b = $('[data-act=ttsPlay]'); if (b) b.focus(); } },
-  ttsPlay: () => ttsPlay(),
+  ttsPlay: () => { if (LV && LV.pdf && !LV.ouviu && !TTS.lendo) { LV.ouviu = 1; reg('ouvir', 'livro digital', LV.d.id, LV.d.titulo, 'leitura em voz alta'); } ttsPlay(); },
   ttsParar: () => ttsParar(),
   fonte: t => { ls.set('bibFonte', Math.min(FONTES.length - 1, Math.max(0, fonteIdx() + +t.dataset.d))); aplicarFonte(); render(); const b = $(`[data-act=fonte][data-d="${t.dataset.d}"]`); if (b && !b.disabled) b.focus(); aviso(`Letra em ${Math.round(FONTES[fonteIdx()] * 100)}%`); },
   contraste: () => { TEMA.set(TEMA.get() === 'contraste' ? 'auto' : 'contraste'); render(); const b = $('[data-act=contraste]'); if (b) b.focus(); aviso(TEMA.get() === 'contraste' ? 'Alto contraste ligado' : 'Alto contraste desligado'); },
   oGen: t => { F.g = t.dataset.id; render(); const b = $(`[data-act=oGen][data-id="${t.dataset.id}"]`); if (b) b.focus(); avisoLista('#lista'); },
   dGen: t => { FD.g = t.dataset.id; render(); const b = $(`[data-act=dGen][data-id="${t.dataset.id}"]`); if (b) b.focus(); avisoLista('#dlista'); },
-  oVer: t => { if (PG !== 'catalogo') { ttsFechar(); enviarPos(); LV = null; } F.id = t.dataset.id; PG = 'catalogo'; render(); focoTela(); },
+  oVer: t => { const ob = D.obras.find(x => x.id === t.dataset.id); if (ob) reg('ver', 'livro físico', ob.id, ob.titulo); if (PG !== 'catalogo') { ttsFechar(); enviarPos(); LV = null; } F.id = t.dataset.id; PG = 'catalogo'; render(); focoTela(); },
   oVoltar: () => { const id = F.id; F.id = ''; render(); focoVolta('obra-' + id); },
-  dVer: t => { const id = t.dataset.id, ir = () => { FD.id = id; PG = 'virtual'; LV = null; render(); focoTela(); }; if (DG) ir(); else run(async () => { DG = await api('leitor.digitais', { token: token() }, 'Carregando os livros digitais…'); ir(); }); },
+  dVer: t => { const id = t.dataset.id, ir = () => { const d = DG.digitais.find(x => x.id === id); if (d) reg('ver', 'livro digital', id, d.titulo); FD.id = id; PG = 'virtual'; LV = null; render(); focoTela(); }; if (DG) ir(); else run(async () => { DG = await api('leitor.digitais', { token: token() }, 'Carregando os livros digitais…'); ir(); }); },
   dVoltar: () => { const id = FD.id; FD.id = ''; render(); focoVolta('dig-' + id); },
   lvZoom: t => { if (!LV) return; LV.zoom = Math.min(2.5, Math.max(0.6, +(LV.zoom + 0.25 * +t.dataset.d).toFixed(2))); if (LV.modo === 'rolagem') render(); else desenharPagina(); },
   lvModo: () => { if (!LV) return; LV.modo = LV.modo === 'rolagem' ? 'pagina' : 'rolagem'; try { localStorage.setItem('bibModo', LV.modo); } catch (e) { } render(); },
@@ -567,20 +572,25 @@ const ACT = {
   fechar: (t, e) => { if (e.target === t || t.tagName === 'BUTTON') modal(''); },
   rolar: t => { const d = $('#dest'); if (d) d.scrollBy({ left: +t.dataset.d * 290, behavior: SUAVE() }); },
   verObra: t => { MENU = false; ACT.oVer(t); },
-  verCantiga: t => { const id = t.dataset.id; if (C) { FC.id = id; PG = 'cantigas'; render(); return; } run(async () => { C = await api('leitor.cantigas', { token: token() }, 'Carregando a cantiga…'); FC.id = id; PG = 'cantigas'; render(); window.scrollTo(0, 0); }); },
+  verCantiga: t => { const id = t.dataset.id; if (C) { regCant(id, ''); FC.id = id; PG = 'cantigas'; render(); return; } run(async () => { C = await api('leitor.cantigas', { token: token() }, 'Carregando a cantiga…'); regCant(id, ''); FC.id = id; PG = 'cantigas'; render(); window.scrollTo(0, 0); }); },
   pedir: t => { const o = D.obras.find(x => x.id === t.dataset.id); modal(`<h2>Pedir retirada</h2><p><b>${esc(o.titulo)}</b><br><span class="muted">${esc(o.autor)}</span></p>
       <p class="small">O livro fica separado para você por ${D.config.diasSolicitacao} ${D.config.diasSolicitacao === 1 ? 'dia' : 'dias'}. A biblioteca confirma o pedido e você recebe o protocolo para assinar (pode ser pelo gov.br). Prazo de devolução: ${D.config.prazo} dias após a retirada.</p>
       <div class="modal-actions"><button class="btn" data-act="fechar">Voltar</button><button class="btn primary" data-act="pedirOk" data-id="${o.id}">Confirmar pedido</button></div>`); },
-  pedirOk: t => run(async () => { const r = await api('leitor.solicitar', { token: token(), obraId: t.dataset.id }, 'Enviando pedido…'); modal(''); toast(`Pedido feito! O livro fica separado até ${fmtD(r.expiraEm)}.`); await carregar(); }),
+  pedirOk: t => run(async () => { const r = await api('leitor.solicitar', { token: token(), obraId: t.dataset.id }, 'Enviando pedido…'); modal(''); const ob = D.obras.find(x => x.id === t.dataset.id); reg('pedido', 'livro físico', t.dataset.id, ob ? ob.titulo : ''); toast(`Pedido feito! O livro fica separado até ${fmtD(r.expiraEm)}.`); await carregar(); }),
   cancelar: t => run(async () => { await api('leitor.cancelar', { token: token(), id: t.dataset.id }, 'Cancelando…'); toast('Pedido cancelado'); await carregar(); }),
   cSec: t => { FC.sec = t.dataset.id; FC.id = ''; render(); },
-  cAbrir: (t, e) => { e.stopPropagation(); FC.id = t.dataset.id; FC.modo = t.dataset.modo; render(); window.scrollTo(0, 0); const c = C.cantigas.find(x => x.id === FC.id); if (FC.modo === 'ouvir' && c && c.audio) run(() => ouvirAudio(c.id)); },
-  cVer: t => { FC.id = t.dataset.id; FC.modo = ''; render(); window.scrollTo(0, 0); },
+  cAbrir: (t, e) => { e.stopPropagation(); FC.id = t.dataset.id; FC.modo = t.dataset.modo; regCant(FC.id, FC.modo); render(); window.scrollTo(0, 0); const c = C.cantigas.find(x => x.id === FC.id); if (FC.modo === 'ouvir' && c && c.audio) run(() => ouvirAudio(c.id)); },
+  cVer: t => { FC.id = t.dataset.id; FC.modo = ''; regCant(FC.id, ''); render(); window.scrollTo(0, 0); },
   cVoltar: () => { const id = FC.id; FC.id = ''; render(); focoVolta('cant-' + id); },
   cOuvir: t => run(() => ouvirAudio(t.dataset.id)),
+  prob: t => probAbrir(t.dataset.tipo, t.dataset.id, t.dataset.alvo),
+  probEnviar: () => run(async () => {
+    const cat = $('#pb-cat').value, msg = $('#pb-msg').value.trim(), x = PROB_ATUAL; if (cat === 'Outro' && !msg) { toast('Conte em poucas palavras qual foi o problema.', 'bad'); $('#pb-msg').focus(); return; }
+    await api('leitor.problema', { token: token(), tipo: x.tipo, alvoId: x.id, alvo: x.alvo, categoria: cat, mensagem: (x.pag ? `[página ${x.pag}] ` : '') + msg }, 'Enviando…'); modal(''); toast('Obrigado! A biblioteca vai verificar o problema.');
+  }),
 };
 const FORMS = {
-  entrar: () => run(async () => { CPF = $('#l-cpf').value; try { const r = await api('leitor.entrar', { cpf: CPF, senha: $('#l-senha').value }, 'Entrando…'); ls.set('bibLeitor', r.token); await carregar(); }
+  entrar: () => run(async () => { CPF = $('#l-cpf').value; try { const r = await api('leitor.entrar', { cpf: CPF, senha: $('#l-senha').value, aparelho: APARELHO }, 'Entrando…'); ls.set('bibLeitor', r.token); await carregar(); }
     catch (e) { if (e.code === 'NOSENHA') { V = 'codigo'; render(); } throw e; } }),
   email: () => run(async () => {
     const e = $('#e-email').value.trim(); if (!$('#e-nasc').value) { toast('Informe a data de nascimento.', 'bad'); return; } if (e.toLowerCase() !== $('#e-email2').value.trim().toLowerCase()) { toast('Os e-mails não são iguais.', 'bad'); return; }
@@ -590,7 +600,7 @@ const FORMS = {
   senha: () => run(async () => {
     CPF = $('#s-cpf').value; const s1 = $('#s-senha').value;
     if (s1 !== $('#s-senha2').value) { toast('As senhas não são iguais.', 'bad'); return; }
-    const r = await api('leitor.senha', { cpf: CPF, codigo: $('#s-cod').value, senha: s1 }, 'Salvando…'); ls.set('bibLeitor', r.token); toast('Senha salva!'); await carregar();
+    const r = await api('leitor.senha', { cpf: CPF, codigo: $('#s-cod').value, senha: s1, aparelho: APARELHO }, 'Salvando…'); ls.set('bibLeitor', r.token); toast('Senha salva!'); await carregar();
   }),
   trocar: () => run(async () => {
     const n = $('#t-nova').value; if (n !== $('#t-nova2').value) { toast('As senhas novas não são iguais.', 'bad'); return; }
@@ -601,6 +611,7 @@ document.addEventListener('click', e => { const t = e.target.closest('[data-act]
 document.addEventListener('submit', e => { const f = e.target.closest('[data-form]'); if (f) { e.preventDefault(); FORMS[f.dataset.form](); } });
 document.addEventListener('input', e => {
   if (e.target.matches('[data-cpf]')) { const p = e.target.selectionStart === e.target.value.length; e.target.value = fmtCPF(e.target.value); if (p) e.target.selectionStart = e.target.selectionEnd = e.target.value.length; }
+  if (/^[cd]?q$/.test(e.target.dataset.in || '')) regBusca({ q: 'catálogo', cq: 'cantigas', dq: 'biblioteca virtual' }[e.target.dataset.in], e.target.value);
   if (e.target.dataset.in === 'q') { F.q = e.target.value; $('#lista').innerHTML = listaObras(); avisoLista('#lista'); }
   if (e.target.dataset.in === 'cq') { FC.q = e.target.value; $('#clista').innerHTML = listaCantigas(); }
   if (e.target.dataset.in === 'dq') { FD.q = e.target.value; $('#dlista').innerHTML = listaDigitais(); avisoLista('#dlista'); }
@@ -623,3 +634,54 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('contextmenu', e => { if (e.target.closest('.lv-folha')) e.preventDefault(); });
 let lvTimer, lvLarg = innerWidth; window.addEventListener('resize', () => { clearTimeout(lvTimer); lvTimer = setTimeout(() => { if (innerWidth === lvLarg) return; lvLarg = innerWidth; if (LV && LV.pdf) { if (LV.modo === 'rolagem') render(); else desenharPagina(); } }, 250); }); // só quando a largura muda (no celular a barra do navegador muda a altura ao rolar)
+
+/* ---------- versão 1.13: registro de acessos (só os administradores veem; guardado 12 meses) e relato de problemas ---------- */
+const PG_NOME = { inicio: 'Início', catalogo: 'Catálogo', virtual: 'Biblioteca Virtual', cantigas: 'Cantigas', perfil: 'Meu Perfil', ajuda: 'Ajuda' };
+const sesGet = k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, sesSet = (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) { } };
+const SESSAO = sesGet('bibSes') || (() => { const s = Math.random().toString(36).slice(2, 10); sesSet('bibSes', s); return s; })();
+const APARELHO = /ipad|tablet/i.test(navigator.userAgent) ? 'tablet' : /mobi|android|iphone/i.test(navigator.userAgent) ? 'celular' : 'computador';
+let FILA = [], filaTimer = null;
+function reg(evento, tipo, alvoId, alvo, detalhe) {
+  if (!token()) return;
+  FILA.push({ ts: agoraTxt(), sessao: SESSAO, aparelho: APARELHO, evento, tipo: tipo || '', alvoId: alvoId || '', alvo: String(alvo || '').slice(0, 200), detalhe: String(detalhe == null ? '' : detalhe).slice(0, 200) });
+  if (FILA.length >= 15) enviarFila(); else if (!filaTimer) filaTimer = setTimeout(() => enviarFila(), 20000);
+}
+function enviarFila(sair) {
+  clearTimeout(filaTimer); filaTimer = null; if (!FILA.length || !token()) return; const eventos = FILA.splice(0, 50);
+  try { fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify({ action: 'leitor.registrar', payload: { token: token(), eventos } }), redirect: 'follow', keepalive: !!sair }).catch(() => { }); } catch (e) { }
+}
+addEventListener('pagehide', () => enviarFila(true));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') enviarFila(true); });
+function regEntrada() { if (sesGet('bibEntrou') === token()) return; sesSet('bibEntrou', token()); reg('entrada', 'portal', '', 'Portal', ''); }
+// tempo e páginas lidas: registrado ao sair do livro (ou ao trocar de aplicativo)
+function fimLeitura() {
+  if (!LV || !LV.pdf || !LV.ini) return; const min = Math.round((Date.now() - LV.ini) / 60000), n = LV.vistas.size;
+  if (min || n > 1) reg('leitura', 'livro digital', LV.d.id, LV.d.titulo, `${min} min · ${n} ${n === 1 ? 'página' : 'páginas'} · até a página ${LV.pag}`);
+  LV.ini = Date.now(); LV.vistas = new Set([LV.pag]);
+}
+function regCant(id, modo) { const c = C && C.cantigas.find(x => x.id === id); if (c) reg(['assistir', 'ouvir', 'letra'].includes(modo) ? modo : 'ver', 'cantiga', id, c.titulo, modo || ''); }
+let buscaTimer = null, buscaUlt = ''; function regBusca(onde, v) { clearTimeout(buscaTimer); buscaTimer = setTimeout(() => { const q = String(v || '').trim(); if (q.length >= 3 && q !== buscaUlt) { buscaUlt = q; reg('busca', onde, '', '', q); } }, 2500); }
+// relatar problema
+const PROB_CAT = {
+  livro: ['O livro não abre', 'Página em branco, cortada ou faltando', 'Texto ilegível ou fora de ordem', 'Informação errada (título, autor, gênero)', 'Leitura em voz alta não funciona', 'Outro'],
+  cantiga: ['Letra errada ou incompleta', 'Áudio não toca', 'Vídeo não abre', 'Cantiga na seção errada', 'Outro'],
+  portal: ['Não consigo entrar', 'Página não carrega', 'Botão não funciona', 'Problema no celular', 'Sugestão', 'Outro'],
+};
+let PROB_ATUAL = null;
+const probBt = (tipo, id, alvo, mini) => `<button class="lp-btn light ct-b lp-prob${mini ? ' mini' : ''}" data-act="prob" data-tipo="${tipo}" data-id="${esc(id)}" data-alvo="${esc(alvo)}" aria-label="Relatar um problema${tipo === 'portal' ? ' no portal' : ': ' + esc(alvo)}">${IC.flag}<span>Relatar problema</span></button>`;
+function probAbrir(tipo, id, alvo) {
+  PROB_ATUAL = { tipo, id, alvo, pag: tipo === 'livro' && LV && LV.pdf && LV.d.id === id ? LV.pag : 0 };
+  modal(`<h2>Relatar um problema</h2>${tipo !== 'portal' ? `<p><b>${esc(alvo)}</b>${PROB_ATUAL.pag ? `<br><span class="small muted">Página ${PROB_ATUAL.pag}</span>` : ''}</p>` : ''}
+    <div class="field"><label for="pb-cat">O que aconteceu?</label><select id="pb-cat">${PROB_CAT[tipo].map(c => `<option>${c}</option>`).join('')}</select></div>
+    <div class="field" style="margin-top:10px"><label for="pb-msg">Detalhes (opcional)</label><textarea id="pb-msg" rows="4" maxlength="1000" placeholder="Ex.: a página 12 aparece em branco no celular"></textarea></div>
+    <p class="small muted">A biblioteca recebe o relato com o seu nome para poder responder.</p>
+    <div class="modal-actions"><button class="btn" data-act="fechar">Cancelar</button><button class="btn primary" data-act="probEnviar">Enviar</button></div>`);
+}
+// erros que o próprio portal percebe (no máximo 3 por sessão, sem repetir)
+let AUTO_N = 0; const AUTO_VISTOS = new Set();
+function autoProb(tipo, alvoId, alvo, cat, e) {
+  const m = String(e && e.message || e || '').slice(0, 300); if (!token() || (e && /NET|AUTH|FORBIDDEN|VALIDATION/.test(e.code || '')) || AUTO_N >= 3) return;
+  const k = tipo + alvoId + cat + m; if (AUTO_VISTOS.has(k)) return; AUTO_VISTOS.add(k); AUTO_N++;
+  try { fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify({ action: 'leitor.problema', payload: { token: token(), tipo, alvoId, alvo, categoria: cat + ' (automático)', mensagem: `${m} · ${APARELHO} · ${navigator.userAgent.slice(0, 120)}`, origem: 'automatico' } }), redirect: 'follow' }).catch(() => { }); } catch (x) { }
+}
+addEventListener('error', e => { if (!e.message || /Script error|ResizeObserver/.test(e.message)) return; autoProb('portal', '', PG_NOME[PG] || 'Portal', 'Erro no portal', `${e.message} (${String(e.filename || '').split('/').pop()}:${e.lineno || ''})`); });

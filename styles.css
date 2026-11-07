@@ -489,3 +489,10 @@ td .pill{white-space:normal;text-align:left}
 .lote select{max-width:170px}
 .lote tr.lote-ok{opacity:.6}
 .lote tr.lote-erro td{background:var(--bad-soft)}
+
+/* versão 1.13: Acessos do Portal */
+button.link{background:none;border:0;padding:0;color:var(--brand);font:inherit;font-weight:600;cursor:pointer;text-align:left}button.link:hover{text-decoration:underline}
+.acs-abas{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 12px}
+.acs-top{list-style:none;margin:0;padding:0;counter-reset:t}.acs-top li{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:2px 10px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line,#e3e6ec);counter-increment:t}
+.acs-top li::before{content:counter(t);grid-row:span 2;color:var(--muted,#6b7280);font-weight:700}.acs-top li span:first-of-type{overflow-wrap:anywhere}.acs-top li .small{grid-column:2/4}
+.acs-det summary{cursor:pointer;font-weight:600;margin:10px 0}

@@ -390,9 +390,12 @@ const NAV = [
   { id: 'configuracoes', label: 'Configurações', ic: 'gear', admin: true },
   { id: 'operadores', label: 'Operadores', ic: 'shield', admin: true },
   { id: 'atividades', label: 'Registro de atividades', ic: 'clock', admin: true },
+  { id: 'acessos', label: 'Acessos do Portal', ic: 'chart', admin: true, badge: () => (ACS.resumo && ACS.resumo.problemas) || 0 },
 ];
 const PARENT = { obra: 'catalogo', obraForm: 'catalogo', obraSalva: 'catalogo', usuario: 'usuarios', usuarioForm: 'usuarios', emprestimoOk: 'emprestar', protocolo: 'emprestados', auditoriaRel: 'auditoria' };
 let VIEW = 'inicio', P = {};
+// versão 1.13: estado da tela Acessos do Portal
+const ACS = { per: '30', de: '', ate: '', aba: 'livrosDig', dados: null, resumo: null, resumoEm: 0, resumoPedido: 0, leitor: {} };
 
 function go(v, params = {}) {
   VIEW = v; P = params; UI.menu = false;
@@ -443,7 +446,7 @@ function shell(content) {
     ${bn('catalogo', 'Catálogo', ic('book'))}
     <button class="main-act" data-act="go" data-v="emprestar" ${cur === 'emprestar' ? 'aria-current="page"' : ''}><span class="ic">${ic('swap')}</span><span>Emprestar</span></button>
     <button data-act="go" data-v="emprestados" ${cur === 'emprestados' ? 'aria-current="page"' : ''}>${ic('list')}<span>Emprestados</span>${k.atrasados ? `<span class="dot">${k.atrasados}</span>` : ''}</button>
-    <button data-act="menu" ${['usuarios', 'etiquetas', 'alertas', 'auditoria', 'ocorrencias', 'configuracoes', 'operadores', 'atividades', 'pedidos', 'cantigas', 'virtual'].includes(cur) ? 'aria-current="page"' : ''}>${ic('more')}<span>Mais</span>${k.ocPend + solPend().length ? `<span class="dot">${k.ocPend + solPend().length}</span>` : ''}</button>
+    <button data-act="menu" ${['usuarios', 'etiquetas', 'alertas', 'auditoria', 'ocorrencias', 'configuracoes', 'operadores', 'atividades', 'acessos', 'pedidos', 'cantigas', 'virtual'].includes(cur) ? 'aria-current="page"' : ''}>${ic('more')}<span>Mais</span>${k.ocPend + solPend().length ? `<span class="dot">${k.ocPend + solPend().length}</span>` : ''}</button>
   </nav>
   ${UI.menu ? `<div class="overlay" data-act="menuClose" style="place-items:end stretch;padding:0"></div><div class="sheet-menu" role="menu">
     <button data-act="go" data-v="pedidos">${ic('bell')} Pedidos do portal${solPend().length ? ` (${solPend().length} aguardando)` : ''}</button>
@@ -456,7 +459,8 @@ function shell(content) {
     <button data-act="go" data-v="auditoria">${ic('clip')} Auditoria do acervo${audAtual() ? ' (em andamento)' : ''}</button>
     ${isAdmin() ? `<button data-act="go" data-v="configuracoes">${ic('gear')} Configurações</button>
     <button data-act="go" data-v="operadores">${ic('shield')} Operadores</button>
-    <button data-act="go" data-v="atividades">${ic('clock')} Registro de atividades</button>` : ''}
+    <button data-act="go" data-v="atividades">${ic('clock')} Registro de atividades</button>
+    <button data-act="go" data-v="acessos">${ic('chart')} Acessos do Portal${ACS.resumo && ACS.resumo.problemas ? ` (${ACS.resumo.problemas} problemas)` : ''}</button>` : ''}
     <button data-act="portal">${ic('portal')} Portal do leitor (nova aba)</button>
     <button data-act="tema">${ic('tema')} Tema: ${TEMA.nomes[TEMA.get()]}</button>
     <button data-act="logout">${ic('logout')} Sair (${esc(S.session.email)})</button>
@@ -559,7 +563,8 @@ VIEWS.inicio = {
       const pend = S.digitais.filter(d => d.ativo && d.autorizacao === 'pendente').length, ativos = S.digitais.filter(d => d.ativo).length - pend, lt = Object.values(S.leiturasDig || {}).reduce((a, b) => a + b, 0), ult = [...S.digitais].sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm))).slice(0, 5);
       return `<section class="panel" style="margin-top:16px"><div class="panel-head"><h2>Biblioteca Virtual</h2><button class="btn sm ghost" data-act="go" data-v="virtual">Ver todos</button></div>
         <div class="kpis">${kpi('Livros no portal', ativos, pend ? `${pend} aguardando autorização` : 'todos liberados', pend ? 'warn' : '')}${kpi('Leituras no mês', S.leiturasDigMes || 0, 'livros abertos no portal')}${kpi('Leituras no total', lt, 'desde o início')}</div>
-        <h3 class="small muted" style="margin:14px 0 6px">Últimos cadastrados</h3><div class="dig-ult">${ult.map(d => `<button class="dig-ult-i" data-act="digEditar" data-id="${d.id}"><span class="dig-capa">${d.capa ? `<img src="${esc(d.capa)}" alt="">` : ic('tablet')}</span><span><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || 'Autor não informado')} · ${d.ativo ? '' : 'desativado · '}${plural((S.leiturasDig || {})[d.id] || 0, 'leitura', 'leituras')}</span></span></button>`).join('')}</div></section>`; })() : ''}`;
+        <h3 class="small muted" style="margin:14px 0 6px">Últimos cadastrados</h3><div class="dig-ult">${ult.map(d => `<button class="dig-ult-i" data-act="digEditar" data-id="${d.id}"><span class="dig-capa">${d.capa ? `<img src="${esc(d.capa)}" alt="">` : ic('tablet')}</span><span><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || 'Autor não informado')} · ${d.ativo ? '' : 'desativado · '}${plural((S.leiturasDig || {})[d.id] || 0, 'leitura', 'leituras')}</span></span></button>`).join('')}</div></section>`; })() : ''}
+    ${isAdmin() ? acsResumoHTML() : ''}`;
   }
 };
 
@@ -746,6 +751,7 @@ VIEWS.usuario = {
         <button class="btn primary" data-act="go" data-v="emprestar" data-cpf="${u.cpf}" ${bl.length ? 'disabled' : ''}>${ic('swap')} Novo empréstimo</button></div></div></div>
       ${bl.length ? `<div class="note warn"><b>Não pode retirar livros agora</b><ul>${bl.map(r => `<li>${esc(r)}</li>`).join('')}</ul></div>` : ''}
       ${portalInfo(u)}
+      ${isAdmin() ? acsLeitorHTML(u.id) : ''}
       ${u.assocId ? `<div class="note info"><b>${assocInfo(u)}</b><span>Cadastro criado e atualizado pela Secretaria. Nome, CPF, e-mail, telefone e situação de associado são alterados lá.${u.sincEm ? ` Última atualização: ${fmtD(u.sincEm.slice(0, 10))}.` : ''}</span></div>` : ''}
       <section class="panel"><dl class="facts">
         <div><dt>CPF${u.cpfResp ? ' (do responsável)' : ''}</dt><dd class="mono">${u.cpf ? showCPF(u.cpf) : '—'}</dd></div>
@@ -1346,7 +1352,7 @@ const ACT = {
   menuClose() { UI.menu = false; render(); },
   overlay(t, e) { if (e.target === t) closeModal(); },
   close() { closeModal(); },
-  refresh() { boot(true).then(ok => { if (ok) toast('Dados atualizados'); }); },
+  refresh() { ACS.resumo = null; ACS.resumoPedido = 0; ACS.leitor = {}; if (VIEW === 'acessos') ACS.dados = null; boot(true).then(ok => { if (ok) toast('Dados atualizados'); }); },
   copy(t, e) { e.stopPropagation(); copyText(t.dataset.txt); },
   retryBoot() { boot(); },
   loginReset() { setToken(''); S = null; UI.login = 'start'; UI.loginMsg = ''; render(); },
@@ -2653,3 +2659,92 @@ Object.assign(CHG, {
 });
 INP.loteTit = el => { const r = UI.lote && UI.lote.linhas[+el.dataset.i]; if (r) r.titulo = el.value; };
 INP.loteAut = el => { const r = UI.lote && UI.lote.linhas[+el.dataset.i]; if (r) r.autor = el.value; };
+
+/* ============ versão 1.13: Acessos do Portal (só administradores) ============ */
+Object.assign(I, { chart: '<path d="M4 20V11M10 20V5M16 20v-8M21 20H3"/>', down: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>' });
+const ACS_PER = [['hoje', 'Hoje'], ['7', 'Últimos 7 dias'], ['30', 'Últimos 30 dias'], ['mes', 'Este mês'], ['12', 'Últimos 12 meses'], ['outro', 'Escolher datas']];
+const EV_ROT = { entrada: 'Entrou no portal', login: 'Entrou com a senha', 'senha errada': 'Errou a senha', pagina: 'Abriu a página', ver: 'Viu', abrir: 'Abriu para ler', leitura: 'Leu', ouvir: 'Ouviu', assistir: 'Assistiu', letra: 'Leu a letra', pedido: 'Pediu retirada', busca: 'Buscou' };
+const acsDatas = () => { const t = TODAY(); return ({ hoje: [t, t], 7: [addDays(t, -6), t], 30: [addDays(t, -29), t], mes: [t.slice(0, 8) + '01', t], 12: [addDays(t, -364), t] })[ACS.per] || [ACS.de || addDays(t, -29), ACS.ate || t]; };
+const acsEv = e => `<b>${esc(EV_ROT[e.evento] || e.evento)}</b>${e.tipo && e.tipo !== 'portal' ? ` <span class="small muted">· ${esc(e.tipo)}</span>` : ''}`;
+const acsDet = e => esc([e.alvo, e.detalhe].filter(Boolean).join(' — '));
+async function acsCarregar() { const [de, ate] = acsDatas(); ACS.de = de; ACS.ate = ate; ACS.dados = await api('acessos.relatorio', { de, ate }, { msg: 'Carregando os acessos…' }); ACS.resumo = null; ACS.resumoPedido = 0; if (VIEW === 'acessos') render(); }
+function acsProbTabela(l, ficha) {
+  if (!l.length) return '<p class="muted">Nenhum problema relatado.</p>';
+  return `<div class="table-wrap cards"><table><thead><tr><th>Data</th>${ficha ? '' : '<th>Leitor</th>'}<th>Onde</th><th>Problema</th><th>Situação</th>${ficha ? '' : '<th></th>'}</tr></thead><tbody>${l.map(x => `<tr>
+    <td data-label="Data" class="num">${fmtStamp(x.ts)}</td>${ficha ? '' : `<td data-label="Leitor">${x.userId ? `<button class="link" data-act="go" data-v="usuario" data-id="${x.userId}">${esc(x.nome)}</button>` : '—'}</td>`}
+    <td data-label="Onde">${esc({ livro: 'Livro', cantiga: 'Cantiga', portal: 'Portal' }[x.tipo] || x.tipo)}${x.alvo && x.tipo !== 'portal' ? `: ${esc(x.alvo)}` : x.alvo ? ` <span class="small muted">(${esc(x.alvo)})</span>` : ''}</td>
+    <td data-label="Problema"><b>${esc(x.categoria)}</b>${x.mensagem ? `<br><span class="small">${esc(x.mensagem)}</span>` : ''}${x.origem === 'automatico' ? '<br><span class="small muted">Percebido pelo próprio portal</span>' : ''}</td>
+    <td data-label="Situação">${x.status === 'aberto' ? pill('Aberto', 'warn') : pill('Resolvido', 'ok')}${x.nota ? `<br><span class="small muted">${esc(x.nota)}</span>` : ''}</td>
+    ${ficha ? '' : `<td class="actions">${x.status === 'aberto' ? `<button class="btn sm primary" data-act="acsResolver" data-id="${x.id}">Resolver</button>` : `<button class="btn sm ghost" data-act="acsReabrir" data-id="${x.id}">Reabrir</button>`}</td>`}</tr>`).join('')}</tbody></table></div>`;
+}
+VIEWS.acessos = {
+  admin: true,
+  render() {
+    const R = ACS.dados;
+    if (!R) setTimeout(() => run(acsCarregar), 0);
+    const kpi = (label, val, note, cls = '', act = '') => `<${act ? 'button' : 'div'} class="kpi ${cls}" ${act}><span class="k-label">${label}</span><span class="k-val">${val}</span><span class="k-note">${note}</span></${act ? 'button' : 'div'}>`;
+    const top = (l, vazio) => l && l.length ? `<ol class="acs-top">${l.map(x => `<li><span>${esc(x.nome || x.chave)}</span><b>${x.n}</b><span class="small muted">${fmtStamp(x.ultimo)}</span></li>`).join('')}</ol>` : `<p class="muted">${vazio}</p>`;
+    const abas = [['livrosDig', 'Livros digitais'], ['cantigas', 'Cantigas'], ['livrosFis', 'Catálogo físico'], ['buscas', 'Buscas'], ['paginas', 'Páginas']];
+    const k = R ? R.kpis : null;
+    return `<div class="page-head"><div><h1>Acessos do Portal</h1><p class="sub">Quem acessa o portal do leitor, o que mais foi visto e os problemas relatados. Os registros ficam guardados por 12 meses e só os administradores veem.</p></div>
+      <div class="toolbar"><select id="acs-per" data-ch="acsPer" aria-label="Período">${ACS_PER.map(([v, t]) => `<option value="${v}" ${ACS.per === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+        ${ACS.per === 'outro' ? `<input type="date" id="acs-de" data-ch="acsDe" value="${ACS.de}" aria-label="De"><input type="date" id="acs-ate" data-ch="acsAte" value="${ACS.ate}" aria-label="Até">` : ''}
+        <button class="btn" data-act="acsAtualizar">${ic('refresh')} Atualizar</button><button class="btn" data-act="acsExportar" ${R ? '' : 'disabled'}>${ic('down')} Exportar (Excel)</button></div></div>
+      ${!R ? '<section class="panel"><p class="muted">Carregando…</p></section>' : `
+      <p class="small muted">De ${fmtD(ACS.de)} até ${fmtD(ACS.ate)}.</p>
+      <div class="kpis">${kpi('Leitores que acessaram', k.leitores, 'no período')}${kpi('Entradas no portal', k.entradas, 'visitas (uma por sessão)')}${kpi('Livros digitais abertos', k.livros, 'leituras iniciadas')}
+        ${kpi('Cantigas', k.cantigas, 'vistas, ouvidas ou assistidas')}${kpi('Pedidos pelo portal', k.pedidos, 'retiradas pedidas')}
+        ${kpi('Problemas em aberto', k.problemas, k.problemas ? 'ver a lista' : 'nenhum', k.problemas ? 'bad' : '', 'data-act="acsIrProb"')}${k.senhaErrada ? kpi('Senha errada', k.senhaErrada, 'tentativas no período', 'warn') : ''}</div>
+      <div class="acs-grid">
+        <section class="panel"><h2>Quem mais acessa</h2>${R.leitores.length ? `<div class="table-wrap cards"><table><thead><tr><th>Leitor</th><th class="num">Entradas</th><th class="num">Ações</th><th class="num">Livros</th><th class="num">Cantigas</th><th>Último acesso</th></tr></thead><tbody>
+          ${R.leitores.map(x => `<tr><td data-label="Leitor"><button class="link" data-act="go" data-v="usuario" data-id="${x.userId}">${esc(x.nome)}</button>${x.aparelhos.length ? `<br><span class="small muted">${esc(x.aparelhos.join(', '))}</span>` : ''}</td><td data-label="Entradas" class="num">${x.entradas}</td><td data-label="Ações" class="num">${x.acoes}</td><td data-label="Livros" class="num">${x.livros}</td><td data-label="Cantigas" class="num">${x.cantigas}</td><td data-label="Último acesso" class="num">${fmtStamp(x.ultimo)}</td></tr>`).join('')}
+          </tbody></table></div>` : '<p class="muted">Ninguém acessou o portal neste período.</p>'}</section>
+        <section class="panel" style="margin-top:16px"><h2>Mais acessados</h2><div class="tabs acs-abas" role="tablist">${abas.map(([a, t]) => `<button role="tab" aria-selected="${ACS.aba === a}" class="btn sm ${ACS.aba === a ? 'primary' : 'ghost'}" data-act="acsAba" data-a="${a}">${t}</button>`).join('')}</div>
+          ${top(R[ACS.aba], 'Nada registrado neste período.')}</section>
+      </div>
+      <section class="panel" id="acs-prob" style="margin-top:16px"><h2>Problemas relatados pelos leitores</h2><p class="small muted">Relatos enviados pelo botão “Relatar problema” do portal e erros que o próprio portal percebeu (livro que não abriu, áudio que não tocou).</p>${acsProbTabela(R.problemas)}</section>
+      <section class="panel" style="margin-top:16px"><h2>Últimos acessos</h2>${R.ultimos.length ? `<div class="table-wrap cards"><table><thead><tr><th>Data/hora</th><th>Leitor</th><th>O que fez</th><th>Detalhe</th><th>Aparelho</th></tr></thead><tbody>
+        ${R.ultimos.map(e => `<tr><td data-label="Data/hora" class="num">${fmtStamp(e.ts)}</td><td data-label="Leitor">${esc(e.nome)}</td><td data-label="O que fez">${acsEv(e)}</td><td data-label="Detalhe">${acsDet(e)}</td><td data-label="Aparelho" class="small">${esc(e.aparelho || '—')}</td></tr>`).join('')}
+        </tbody></table></div>` : '<p class="muted">Nenhum acesso neste período.</p>'}</section>`}`;
+  }
+};
+// resumo no Início (carrega em segundo plano)
+function acsResumoHTML() {
+  const R = ACS.resumo;
+  if ((!R || Date.now() - ACS.resumoEm > 60000) && !ACS.resumoPedido) { ACS.resumoPedido = 1; api('acessos.resumo', {}, { silent: true }).then(r => { ACS.resumo = r; ACS.resumoEm = Date.now(); ACS.resumoPedido = 0; const el = $('#acs-ini'); if (el && VIEW === 'inicio') el.outerHTML = acsResumoHTML(); }).catch(() => { ACS.resumoPedido = 0; }); }
+  return `<section class="panel" id="acs-ini" style="margin-top:16px"><div class="panel-head"><h2>Portal do leitor</h2><button class="btn sm ghost" data-act="go" data-v="acessos">Ver acessos</button></div>
+    ${!R ? '<p class="muted small">Carregando os acessos…</p>' : `<div class="kpis"><button class="kpi" data-act="go" data-v="acessos"><span class="k-label">Acessaram hoje</span><span class="k-val">${R.hoje}</span><span class="k-note">${R.nomesHoje.length ? esc(R.nomesHoje.join(', ')) + (R.hoje > R.nomesHoje.length ? '…' : '') : 'ninguém ainda'}</span></button>
+      <button class="kpi" data-act="go" data-v="acessos"><span class="k-label">Leitores no mês</span><span class="k-val">${R.mes}</span><span class="k-note">acessaram o portal</span></button>
+      <button class="kpi ${R.problemas ? 'bad' : ''}" data-act="acsIrProb"><span class="k-label">Problemas relatados</span><span class="k-val">${R.problemas}</span><span class="k-note">${R.problemas ? 'em aberto' : 'nenhum em aberto'}</span></button></div>`}</section>`;
+}
+// ficha do leitor
+function acsLeitorHTML(id) {
+  const R = ACS.leitor[id];
+  if (R === undefined) { ACS.leitor[id] = null; api('acessos.leitor', { userId: id }, { silent: true }).then(r => { ACS.leitor[id] = r; const el = $('#acs-ficha'); if (el && VIEW === 'usuario' && P.id === id) el.outerHTML = acsLeitorHTML(id); }).catch(() => { delete ACS.leitor[id]; }); }
+  return `<section class="panel" id="acs-ficha"><h2>Acessos ao portal</h2>${!R ? '<p class="muted small">Carregando…</p>' : !R.total && !R.problemas.length ? '<p class="muted">Ainda não acessou o portal (ou não nos últimos 12 meses).</p>' : `
+    <dl class="facts"><div><dt>Entradas</dt><dd>${R.entradas}</dd></div><div><dt>Registros</dt><dd>${R.total}</dd></div><div><dt>Último acesso</dt><dd>${R.ultimo ? fmtStamp(R.ultimo) : '—'}</dd></div><div><dt>Problemas relatados</dt><dd>${R.problemas.length}</dd></div></dl>
+    ${R.eventos.length ? `<details class="acs-det"><summary>Ver os últimos acessos (${R.eventos.length})</summary><div class="table-wrap cards"><table><thead><tr><th>Data/hora</th><th>O que fez</th><th>Detalhe</th><th>Aparelho</th></tr></thead><tbody>
+      ${R.eventos.map(e => `<tr><td data-label="Data/hora" class="num">${fmtStamp(e.ts)}</td><td data-label="O que fez">${acsEv(e)}</td><td data-label="Detalhe">${acsDet(e)}</td><td data-label="Aparelho" class="small">${esc(e.aparelho || '—')}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
+    ${R.problemas.length ? `<h3 class="small muted" style="margin:14px 0 6px">Problemas relatados</h3>${acsProbTabela(R.problemas, true)}` : ''}`}</section>`;
+}
+Object.assign(ACT, {
+  acsAtualizar() { run(acsCarregar); },
+  acsAba(t) { ACS.aba = t.dataset.a; render(); const b = $(`[data-act=acsAba][data-a="${ACS.aba}"]`); if (b) b.focus(); },
+  acsIrProb() { const ir = () => { const el = $('#acs-prob'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }; if (VIEW !== 'acessos') { go('acessos'); setTimeout(ir, 1500); } else ir(); },
+  acsResolver(t) { openModal(`<h2>Resolver o problema</h2><div class="field"><label for="acs-nota">O que foi feito? (opcional)</label><textarea id="acs-nota" rows="3" maxlength="300" placeholder="Ex.: PDF trocado por uma versão completa"></textarea></div>
+    <div class="modal-actions"><button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="acsResolverOk" data-id="${t.dataset.id}">Marcar como resolvido</button></div>`); },
+  acsResolverOk(t) { run(async () => { await api('problema.resolver', { id: t.dataset.id, nota: $('#acs-nota').value }, { msg: 'Salvando…' }); closeModal(); toast('Problema marcado como resolvido'); await acsCarregar(); }); },
+  acsReabrir(t) { run(async () => { await api('problema.resolver', { id: t.dataset.id, reabrir: true }, { msg: 'Salvando…' }); toast('Problema reaberto'); await acsCarregar(); }); },
+  acsExportar() {
+    run(async () => {
+      const r = await api('acessos.exportar', { de: ACS.de, ate: ACS.ate }, { msg: 'Preparando a planilha…' }), q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const csv = '﻿' + [['Data/hora', 'Leitor', 'Evento', 'Tipo', 'Item', 'Detalhe', 'Aparelho']].concat(r.linhas.map(l => [l[0], l[1], EV_ROT[l[2]] || l[2], l[3], l[4], l[5], l[6]])).map(l => l.map(q).join(';')).join('\r\n');
+      baixarBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `acessos-portal_${ACS.de}_a_${ACS.ate}.csv`); toast(`${r.linhas.length} registros exportados`);
+    });
+  },
+});
+Object.assign(CHG, {
+  acsPer(el) { ACS.per = el.value; if (ACS.per === 'outro') { render(); return; } run(acsCarregar); },
+  acsDe(el) { ACS.de = el.value; if (ACS.de && ACS.ate) run(acsCarregar); },
+  acsAte(el) { ACS.ate = el.value; if (ACS.de && ACS.ate) run(acsCarregar); },
+});

@@ -1,6 +1,6 @@
 /* Service worker: permite instalar o app no celular e abrir a tela mesmo com internet instável.
    Os dados sempre vêm da API (não ficam guardados aqui). Ao publicar uma versão nova, troque o número abaixo. */
-const CACHE = 'biblioteca-v1.12.0'; // desde a 1.6.5: busca sempre conferindo no servidor (cache: no-cache)
+const CACHE = 'biblioteca-v1.13.0'; // desde a 1.6.5: busca sempre conferindo no servidor (cache: no-cache)
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'logo.png', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest', 'privacidade.html', 'leitor.html', 'leitor.js', 'leitor.css', 'tema.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
