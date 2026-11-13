@@ -602,7 +602,7 @@ VIEWS.catalogo = {
   render() {
     const cats = [...new Set(S.obras.map(o => o.genero))].sort((a, b) => generoNome(a).localeCompare(generoNome(b), 'pt-BR'));
     return `<div class="page-head"><div><h1>Catálogo</h1><p class="sub">${S.obras.length} títulos · ${kpis().exemplares} exemplares. Cada exemplar físico tem seu próprio código de etiqueta.</p></div>
-      <div class="inline wrap">${S.obras.some(o => !o.capa) ? `<button class="btn" data-act="capasFaltam">${ic('search')} Buscar capas que faltam</button>` : ''}<button class="btn primary" data-act="go" data-v="obraForm">${ic('plus')} Nova obra</button></div></div>
+      <div class="inline wrap">${S.obras.some(o => !o.capa) ? `<button class="btn" data-act="capasFaltam">${ic('search')} Buscar capas que faltam</button><button class="btn" data-act="filaCapas">${ic('camera')} Fotografar capas</button>` : ''}<button class="btn primary" data-act="go" data-v="obraForm">${ic('plus')} Nova obra</button></div></div>
       <div class="toolbar"><label class="search"><span class="sr">Buscar</span>${ic('search')}<input id="cat-q" data-in="catQ" value="${esc(P.q || '')}" placeholder="Título, autor, ISBN ou código da etiqueta" autocomplete="off"></label>
       ${podeEscanear() ? `<button type="button" class="btn" data-act="scanCat">${ic('scan')} Ler ISBN</button>` : ''}
       <div class="field" style="flex:0 1 220px"><label class="sr" for="cat-cat">Gênero</label><select id="cat-cat" data-ch="catCat"><option value="">Todos os gêneros</option>${cats.map(c => `<option value="${esc(c)}" ${P.cat === c ? 'selected' : ''}>${esc(generoNome(c))} (${esc(c)})</option>`).join('')}</select></div></div>
@@ -630,7 +630,7 @@ VIEWS.obra = {
         <div><dt>Cadastro</dt><dd>${fmtD(o.dataCadastro)}</dd></div>
         ${o.obs ? `<div style="grid-column:1/-1"><dt>Observações</dt><dd>${esc(o.obs)}</dd></div>` : ''}
       </dl></section>
-      <section class="panel"><div class="panel-head"><h2>Exemplares</h2><button class="btn sm" data-act="go" data-v="etiquetas" data-sel="${exs.filter(e => e.status !== 'Baixado').map(e => e.id).join(',')}">${ic('tag')} Etiquetas desta obra</button></div>
+      <section class="panel"><div class="panel-head"><h2>Exemplares</h2><div class="inline wrap">${exs.some(e => e.status !== 'Baixado') ? `<button class="btn sm" data-act="exLocal" data-obra="${o.id}">${ic('edit')} Mudar prateleira de todos</button>` : ''}<button class="btn sm" data-act="go" data-v="etiquetas" data-sel="${exs.filter(e => e.status !== 'Baixado').map(e => e.id).join(',')}">${ic('tag')} Etiquetas desta obra</button></div></div>
         <div class="table-wrap cards"><table><thead><tr><th>Código</th><th>Localização</th><th>Situação</th><th>Etiqueta</th><th><span class="sr">Ações</span></th></tr></thead><tbody>
         ${exs.map(e => {
           const l = loanOfEx(e.id);
@@ -640,7 +640,7 @@ VIEWS.obra = {
             : e.status === 'Em manutenção' ? `<button class="btn sm" data-act="exStatus" data-id="${e.id}" data-to="Disponível">Disponibilizar</button><button class="btn sm danger" data-act="exStatus" data-id="${e.id}" data-to="Baixado">Dar baixa</button>`
             : (isAdmin() ? `<button class="btn sm" data-act="exStatus" data-id="${e.id}" data-to="Disponível">Reativar</button>` : '');
           return `<tr><td data-label="Código"><span class="hash">${e.codigo}<button class="icon-btn" data-act="copy" data-txt="${e.codigo}" aria-label="Copiar código">${ic('copy')}</button></span>${isAdmin() ? `<button class="icon-btn" data-act="exFix" data-id="${e.id}" aria-label="Corrigir sigla do código" title="Corrigir sigla">${ic('edit')}</button>` : ''}</td>
-            <td data-label="Localização">${esc(e.local)}</td>
+            <td data-label="Localização">${esc(e.local)}${e.status !== 'Baixado' ? `<button class="icon-btn" data-act="exLocal" data-id="${e.id}" aria-label="Mudar a prateleira de ${e.codigo}" title="Mudar a prateleira">${ic('edit')}</button>` : ''}</td>
             <td data-label="Situação">${pill(e.status, EX_CLS[e.status])}${l ? `<div class="s">com ${esc(user(l.userId).nome)} até ${fmtD(l.dataPrev)}</div>` : e.obs ? `<div class="s">${esc(e.obs)}</div>` : ''}</td>
             <td data-label="Etiqueta">${e.etiqueta ? 'Impressa' : '<span class="chip">Pendente</span>'}</td>
             <td class="actions">${acts}</td></tr>`;
@@ -684,7 +684,7 @@ VIEWS.obraForm = {
           <div class="field full"><label for="f-obs">Observações</label><textarea id="f-obs">${v('obs')}</textarea></div>
           <div class="field full"><span class="lbl" style="font-weight:600">Capa</span>
             <div class="capa-linha"><span id="ob-capa-prev" class="dig-capa">${o && o.capa ? `<img src="${esc(o.capa)}" alt="">` : ic('book')}</span>
-              <div class="inline wrap"><button type="button" class="btn sm" data-act="obCapaBuscar">${ic('search')} Buscar na internet</button><label class="btn sm">${ic('camera')} Tirar foto ou escolher<input type="file" accept="image/*" hidden data-ch="obCapaFoto"></label><button type="button" class="btn sm ghost" data-act="obCapaTirar">Tirar a capa</button></div></div>
+              <div class="inline wrap"><button type="button" class="btn sm" data-act="obCapaBuscar">${ic('search')} Buscar na internet</button><label class="btn sm">${ic('camera')} Tirar foto<input type="file" accept="image/*" capture="environment" hidden data-ch="obCapaFoto"></label><label class="btn sm">${ic('upload')} Escolher da galeria<input type="file" accept="image/*" hidden data-ch="obCapaFoto"></label><button type="button" class="btn sm ghost" data-act="obCapaTirar">Tirar a capa</button></div></div>
             <div id="ob-capas"></div><span class="hint">Aparece no portal do leitor. Sem capa escolhida, o portal tenta achar pelo ISBN.</span></div>
         </div></fieldset>
         ${ed ? '' : `<fieldset><legend>Exemplares físicos</legend><div class="fields">
@@ -695,14 +695,14 @@ VIEWS.obraForm = {
         <div class="form-actions"><button type="button" class="btn" data-act="go" data-v="${ed ? 'obra' : 'catalogo'}" ${ed ? `data-id="${o.id}"` : ''}>Cancelar</button><button class="btn primary">${ed ? 'Salvar alterações' : 'Salvar e gerar códigos'}</button></div>
       </form>`;
   },
-  after() { UI.gb = []; const o = P.id ? obra(P.id) : null; UI.obCapa = (o && o.capa) || ''; if (!P.id && P.isbn && $('#f-isbn')) ACT.gbIsbn(); }
+  after() { UI.gb = []; const o = P.id ? obra(P.id) : null; UI.obCapa = (o && o.capa) || ''; if (!P.id && P.isbn && $('#f-isbn')) ACT.gbIsbn(); if (!P.id) api('obra.seq', {}, { silent: true }).then(r => { S.seq = r.seq; const pv = $('#cod-preview'); if (pv) pv.innerHTML = codPreview(); }).catch(() => { }); }
 };
 function codPreview(sig, qtd) {
   sig = sig ?? ($('#f-genero') ? $('#f-genero').value : '');
   qtd = qtd ?? ($('#f-qtd') ? parseInt($('#f-qtd').value) || 1 : 1);
   if (!sig) return '<div class="note"><span>Escolha o gênero para ver os códigos que serão gerados.</span></div>';
   const a = (S.seq || 0) + 1, b = a + Math.max(1, qtd) - 1;
-  return `<div class="note info"><span>${qtd > 1 ? 'Os exemplares vão receber os códigos' : 'O exemplar vai receber o código'} <b class="mono">LIV-${fmtNum(a)}-${sig}</b>${qtd > 1 ? ` a <b class="mono">LIV-${fmtNum(b)}-${sig}</b>` : ''}.</span></div>`;
+  return `<div class="note info"><span>${qtd > 1 ? 'Códigos previstos' : 'Código previsto'}: <b class="mono">LIV-${fmtNum(a)}-${sig}</b>${qtd > 1 ? ` a <b class="mono">LIV-${fmtNum(b)}-${sig}</b>` : ''}. <span class="small">O definitivo aparece ao salvar (outra pessoa pode estar catalogando ao mesmo tempo).</span></span></div>`;
 }
 
 VIEWS.obraSalva = {
@@ -1140,6 +1140,7 @@ VIEWS.configuracoes = {
         </div></fieldset>
         <div class="form-actions"><button class="btn primary">Salvar configurações</button></div>
       </form>
+      ${modulosPortalHTML()}
       <section class="panel"><div class="panel-head"><h2>Transcrição de cantigas (Gemini)</h2>${pill(S.geminiOk ? 'ativada' : 'desativada', S.geminiOk ? 'ok' : 'mute')}</div>
         <p class="small muted">Para transcrever áudios e vídeos das cantigas, crie uma chave gratuita em <b>aistudio.google.com</b> (menu "Get API key"), entrando com a conta da biblioteca, e cole aqui. A chave fica guardada só no servidor. No plano gratuito o Google pode usar o conteúdo enviado para melhorar os serviços dele.</p>
         <div class="toolbar"><input id="c-gem" type="password" autocomplete="off" placeholder="${S.geminiOk ? 'Chave cadastrada (cole outra para trocar)' : 'Cole a chave (AQ.… ou AIza…)'}" style="flex:1 1 260px"><button class="btn primary" data-act="gemSalvar">Salvar chave</button>${S.geminiOk ? '<button class="btn ghost" data-act="gemRemover">Remover</button>' : ''}</div></section>
@@ -2341,7 +2342,7 @@ function digLista() {
   const lt = S.leiturasDig || {};
   return `<div class="table-wrap cards"><table><thead><tr><th>Livro</th><th>Autorização</th><th>PDF</th><th>Leituras</th></tr></thead><tbody>
     ${l.map(d => `<tr class="${d.ativo ? '' : 'dim'}"><td class="lead"><button class="linklike dig-row" data-act="digEditar" data-id="${d.id}">${d.capa ? `<img src="${d.capa}" alt="">` : `<span class="dig-sem">${ic('tablet')}</span>`}<span><span class="t">${esc(d.titulo)}</span><span class="s">${esc(d.autor || '—')}${d.genero ? ' · ' + esc(generoNome(d.genero)) : ''}</span></span></button></td>
-      <td data-label="Autorização" class="small">${esc(AUTORIZ[d.autorizacao] || '—')}${d.soAssociados ? '<br>' + pill('só associados', 'info') : ''}</td>
+      <td data-label="Autorização" class="small">${esc(AUTORIZ[d.autorizacao] || '—')}</td>
       <td data-label="PDF">${(d.partes || []).length ? esc(MB(d.tamanho)) : pill('sem PDF', 'warn')}${d.ativo ? '' : ' ' + pill('desativado', 'mute')}</td>
       <td data-label="Leituras">${lt[d.id] || 0}</td></tr>`).join('')}</tbody></table></div>`;
 }
@@ -2369,7 +2370,7 @@ function digForm(d) {
     <div class="field full"><label for="dg-desc">Descrição (aparece para o leitor)</label><textarea id="dg-desc" maxlength="1000" style="min-height:70px">${esc(d.descricao || '')}</textarea></div>
     <div class="field"><label for="dg-autz">Autorização para publicar</label><select id="dg-autz" data-ch="digAutz"><option value="">Escolha…</option>${Object.keys(AUTORIZ).map(k => `<option value="${k}" ${d.autorizacao === k ? 'selected' : ''}>${AUTORIZ[k]}</option>`).join('')}</select></div>
     <div class="field" id="dg-obs-f" ${d.autorizacao === 'autorizado' ? '' : 'hidden'}><label for="dg-obs">Quem autorizou e como</label><input id="dg-obs" maxlength="300" value="${esc(d.autorizacaoObs || '')}" placeholder="Ex.: e-mail da editora em 10/11/2026"></div>
-    <div class="field full"><label class="check"><input type="checkbox" id="dg-assoc" ${d.soAssociados ? 'checked' : ''}> Só para associados da casa (ex.: apostilas internas)</label></div>
+    <p class="field full small muted">No portal, a Biblioteca Virtual é exclusiva dos associados com as mensalidades em dia.</p>
     <div class="field full"><span class="lbl" style="font-weight:600">Capa</span><div class="capa-linha"><span id="dg-capa-prev" class="dig-capa">${d.capa ? `<img src="${esc(d.capa)}" alt="">` : ic('tablet')}</span>
       <div class="inline wrap"><button type="button" class="btn sm" data-act="digCapasNet">${ic('search')} Buscar na internet</button><button type="button" class="btn sm" data-act="digCapaPdf" ${UI.dig.capaPdf ? '' : 'hidden'} id="dg-capa-pdf">Usar a 1ª página do PDF</button><label class="btn sm">Escolher imagem<input type="file" accept="image/*" hidden data-ch="digCapa"></label><button type="button" class="btn sm ghost" data-act="digCapaTirar">Tirar</button></div></div>
       <div id="dg-capas"></div><span class="hint">Ao escolher o PDF, a 1ª página vira a capa; as capas da internet aparecem abaixo para trocar.</span></div>
@@ -2391,7 +2392,7 @@ Object.assign(ACT, {
   digEditar(t) { openModal(digForm((S.digitais || []).find(x => x.id === t.dataset.id))); },
   digCapaTirar() { UI.dig.capa = ''; $('#dg-capa-prev').innerHTML = ic('tablet'); marcaCapa('#dg-capas', ''); },
   digSalvar() {
-    const v = s => ($(s) ? $(s).value : ''), u = UI.dig, d = { id: u.id || undefined, titulo: v('#dg-tit'), autor: v('#dg-aut'), ano: v('#dg-ano'), genero: v('#dg-gen'), obraId: v('#dg-obra'), descricao: v('#dg-desc'), autorizacao: v('#dg-autz'), autorizacaoObs: v('#dg-obs'), soAssociados: $('#dg-assoc').checked, capa: u.capa, ativo: $('#dg-ativo') ? $('#dg-ativo').checked : true };
+    const v = s => ($(s) ? $(s).value : ''), u = UI.dig, d = { id: u.id || undefined, titulo: v('#dg-tit'), autor: v('#dg-aut'), ano: v('#dg-ano'), genero: v('#dg-gen'), obraId: v('#dg-obra'), descricao: v('#dg-desc'), autorizacao: v('#dg-autz'), autorizacaoObs: v('#dg-obs'), capa: u.capa, ativo: $('#dg-ativo') ? $('#dg-ativo').checked : true };
     if (!u.id && !u.pdf) { toast('Escolha o arquivo PDF.', 'bad'); return; }
     run(async () => { const r = await api('dig.salvar', d, { msg: 'Salvando…' }); if (u.pdf) await digEnviarPdf(r.id, u.pdf); closeModal(); render(); toast(u.pdf ? 'Livro digital salvo com o PDF' : 'Livro digital salvo'); });
   },
@@ -2556,7 +2557,7 @@ Object.assign(ACT, {
   },
 });
 Object.assign(CHG, {
-  obCapaFoto(el) { const f = el.files[0]; if (!f) return; run(async () => { UI.obCapa = await capaReduzida(f, 300, 20000); capaPrev('#ob-capa-prev', UI.obCapa, 'book'); marcaCapa('#ob-capas', ''); toast('Foto pronta para virar a capa. Salve a obra para gravar.'); }); el.value = ''; },
+  obCapaFoto(el) { const f = el.files[0]; el.value = ''; if (!f) return; run(async () => { const blob = await recortarCapa(f); if (!blob) return; UI.obCapa = await capaReduzida(blob, 300, 20000); capaPrev('#ob-capa-prev', UI.obCapa, 'book'); marcaCapa('#ob-capas', ''); toast('Capa pronta. Salve a obra para gravar.'); }); },
   cfMarca(el) { const c = UI.cf[el.dataset.id]; if (c) el.closest('.cf-row').querySelectorAll('.capa-op').forEach(b => b.setAttribute('aria-pressed', el.checked && b.dataset.url === c.esc)); },
 });
 
@@ -2580,7 +2581,6 @@ function linhaLote(r, i) {
     <td><input class="lote-in" data-in="loteAut" data-i="${i}" value="${esc(r.autor)}" aria-label="Autor"></td>
     <td><select data-ch="loteGen" data-i="${i}" aria-label="Gênero"><option value="">—</option>${gens.map(g => `<option value="${g.sigla}" ${r.genero === g.sigla ? 'selected' : ''}>${esc(g.nome)}</option>`).join('')}</select></td>
     <td><select data-ch="loteAutz" data-i="${i}" aria-label="Autorização"><option value="">Escolha…</option>${['dominio', 'propria', 'autorizado', 'pendente'].map(k => `<option value="${k}" ${r.autorizacao === k ? 'selected' : ''}>${AUTORIZ[k]}</option>`).join('')}</select></td>
-    <td><label class="check small"><input type="checkbox" data-ch="loteAssoc" data-i="${i}" ${r.soAssociados ? 'checked' : ''}> Só associados</label></td>
     <td class="small" id="lote-st-${i}">${r.status}</td></tr>`;
 }
 const loteResumo = () => { const L = UI.lote, m = L.linhas.filter(r => r.marcado && r.estado !== 'ok').length, ok = L.linhas.filter(r => r.estado === 'ok').length; const el = $('#lote-res'); if (el) el.textContent = `${L.linhas.length} arquivo(s) lido(s)${L.lendo ? ' — lendo…' : ''} · ${m} marcado(s) para enviar${ok ? ` · ${ok} enviado(s)` : ''}`; const b = $('#lote-enviar'); if (b) b.disabled = !m || L.lendo || L.enviando; };
@@ -2622,9 +2622,9 @@ Object.assign(ACT, {
       <div class="note warn"><span><b>Só publique o que pode ser publicado:</b> domínio público (autor falecido há mais de 70 anos), publicação própria da casa ou com autorização por escrito. Confira a autorização de cada livro antes de enviar.</span></div>
       <div class="inline wrap" style="margin:10px 0"><label class="btn primary">${ic('plus')} Escolher PDFs<input type="file" accept="application/pdf,.pdf" multiple hidden data-ch="loteArq"></label>
         <label class="small">Autorização para os novos <select data-ch="loteAutzPad"><option value="dominio" selected>${AUTORIZ.dominio}</option><option value="propria">${AUTORIZ.propria}</option><option value="pendente">${AUTORIZ.pendente}</option><option value="">Escolher em cada um</option></select></label>
-        <label class="check small"><input type="checkbox" data-ch="loteAssocPad"> Só associados (novos)</label></div>
+</div>
       <p class="small muted" id="lote-res">Nenhum arquivo escolhido.</p>
-      <div class="lote-wrap"><table class="lote"><thead><tr><th><span class="sr">Enviar</span></th><th>Capa</th><th>Título</th><th>Autor</th><th>Gênero</th><th>Autorização</th><th></th><th>Situação</th></tr></thead><tbody id="lote-tb"></tbody></table></div>
+      <div class="lote-wrap"><table class="lote"><thead><tr><th><span class="sr">Enviar</span></th><th>Capa</th><th>Título</th><th>Autor</th><th>Gênero</th><th>Autorização</th><th>Situação</th></tr></thead><tbody id="lote-tb"></tbody></table></div>
       <div class="modal-actions"><button class="btn" data-act="close">Fechar</button><button class="btn primary" data-act="loteEnviar" id="lote-enviar" disabled>Enviar os marcados</button></div>`);
     const m = $('#modal-root .modal'); if (m) m.classList.add('modal-lote');
   },
@@ -2748,3 +2748,108 @@ Object.assign(CHG, {
   acsDe(el) { ACS.de = el.value; if (ACS.de && ACS.ate) run(acsCarregar); },
   acsAte(el) { ACS.ate = el.value; if (ACS.de && ACS.ate) run(acsCarregar); },
 });
+
+/* ============ versão 1.14: módulos do portal, prateleira do exemplar e capas pelo celular ============ */
+const MODS_PORTAL = [['portal', 'Portal do leitor (inteiro)'], ['catalogo', 'Catálogo físico'], ['pedidos', 'Pedidos de retirada'], ['virtual', 'Biblioteca Virtual'], ['cantigas', 'Cantigas'], ['problemas', 'Relatar problema']];
+const EST_MOD = { ativo: 'Ativo', oculto: 'Oculto', manutencao: 'Em manutenção' };
+const tsLocal = v => v ? v.replace('T', ' ').slice(0, 16) : '', tsInput = v => v ? v.replace(' ', 'T') : '';
+function modulosPortalHTML() {
+  const m = (S.config && S.config.portalModulos) || {}, agora = new Date(), hoje = `${TODAY()} ${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}`;
+  const linha = ([k, nome]) => { const x = m[k] || {}, est = x.estado || 'ativo', ag = x.agIni && x.agFim, agora_ = ag && hoje >= x.agIni && hoje < x.agFim;
+    return `<div class="pm-linha" data-mod="${k}"><div class="pm-tit"><b>${nome}</b>${agora_ ? pill(x.agEstado === 'oculto' ? 'oculto agora (agendado)' : 'em manutenção agora (agendado)', 'warn') : est !== 'ativo' ? pill(EST_MOD[est], est === 'oculto' ? 'mute' : 'warn') : pill('ativo', 'ok')}</div>
+      <div class="pm-campos"><label class="small">Situação<select data-pm="estado">${Object.keys(EST_MOD).map(e => `<option value="${e}" ${est === e ? 'selected' : ''}>${EST_MOD[e]}</option>`).join('')}</select></label>
+        <label class="small">Mensagem aos leitores<input data-pm="msg" maxlength="300" value="${esc(x.msg || '')}" placeholder="Ex.: Estamos trocando os arquivos. Volte amanhã."></label>
+        <label class="small">Previsão de volta<input data-pm="prev" maxlength="60" value="${esc(x.prev || '')}" placeholder="Ex.: sábado à tarde"></label></div>
+      <details class="pm-ag" ${ag ? 'open' : ''}><summary>Agendar manutenção${ag ? `: ${fmtStamp(x.agIni)} a ${fmtStamp(x.agFim)}` : ''}</summary><div class="pm-campos">
+        <label class="small">Início<input type="datetime-local" data-pm="agIni" value="${tsInput(x.agIni)}"></label><label class="small">Fim<input type="datetime-local" data-pm="agFim" value="${tsInput(x.agFim)}"></label>
+        <label class="small">Durante o agendamento<select data-pm="agEstado"><option value="manutencao" ${x.agEstado !== 'oculto' ? 'selected' : ''}>Em manutenção</option><option value="oculto" ${x.agEstado === 'oculto' ? 'selected' : ''}>Oculto</option></select></label>
+        ${ag ? `<button type="button" class="btn sm ghost" data-act="pmLimparAg" data-mod="${k}">Cancelar agendamento</button>` : ''}</div></details></div>`; };
+  return `<section class="panel" id="pm"><div class="panel-head"><h2>Portal do leitor: módulos e manutenção</h2><button class="btn sm primary" data-act="pmSalvar">Salvar módulos</button></div>
+    <p class="small muted"><b>Oculto</b> some do portal; <b>Em manutenção</b> aparece com a sua mensagem. O agendamento liga e desliga sozinho no horário. Administradores continuam vendo tudo no portal para testar (entrando com o CPF do seu cadastro de leitor com o mesmo e-mail do Google).</p>
+    <div class="pm-lista">${MODS_PORTAL.map(linha).join('')}</div></section>`;
+}
+Object.assign(ACT, {
+  pmLimparAg(t) { const l = $(`.pm-linha[data-mod="${t.dataset.mod}"]`); l.querySelectorAll('[data-pm=agIni],[data-pm=agFim]').forEach(i => { i.value = ''; }); toast('Agendamento removido. Clique em Salvar módulos.'); },
+  pmSalvar() {
+    const modulos = {}; document.querySelectorAll('.pm-linha').forEach(l => { const v = k => l.querySelector(`[data-pm=${k}]`).value; modulos[l.dataset.mod] = { estado: v('estado'), msg: v('msg'), prev: v('prev'), agIni: tsLocal(v('agIni')), agFim: tsLocal(v('agFim')), agEstado: v('agEstado') }; });
+    run(async () => { const r = await api('portal.modulos', { modulos }, { msg: 'Salvando…' }); S.config.portalModulos = r.portalModulos; render(); const fora = Object.keys(r.efetivo).filter(k => r.efetivo[k].estado !== 'ativo'); toast(fora.length ? `Salvo. Fora do ar agora: ${fora.map(k => MODS_PORTAL.find(x => x[0] === k)[1]).join(', ')}` : 'Salvo. Tudo ativo no portal.'); });
+  },
+  exLocal(t) {
+    const um = t.dataset.id ? S.exemplares.find(e => e.id === t.dataset.id) : null, ob = obra(um ? um.obraId : t.dataset.obra), n = S.exemplares.filter(e => e.obraId === ob.id && e.status !== 'Baixado').length;
+    openModal(`<h2>${um ? 'Mudar a prateleira' : 'Mudar a prateleira de todos'}</h2><p><b>${esc(ob.titulo)}</b><br><span class="small muted">${um ? `Exemplar <span class="mono">${um.codigo}</span> · hoje em ${esc(um.local)}` : plural(n, 'exemplar', 'exemplares')}</span></p>
+      <div class="field"><label for="m-novo-local">Nova localização</label><input id="m-novo-local" list="dl-local2" value="${esc(um ? um.local : '')}" placeholder="Ex.: Estante A · Prateleira 2"><datalist id="dl-local2">${[...new Set(S.exemplares.map(e => e.local))].sort().map(l => `<option value="${esc(l)}">`).join('')}</datalist></div>
+      <div class="modal-actions"><button class="btn" data-act="close">Cancelar</button><button class="btn primary" data-act="exLocalOk" data-id="${um ? um.id : ''}" data-obra="${um ? '' : ob.id}">Salvar</button></div>`);
+  },
+  exLocalOk(t) { const local = $('#m-novo-local').value.trim(); if (!local) { toast('Informe a nova localização.', 'bad'); return; } run(async () => { const r = await api('exemplar.local', { id: t.dataset.id || undefined, obraId: t.dataset.obra || undefined, local }, { msg: 'Salvando…' }); closeModal(); render(); toast(r.alterados ? `Localização alterada (${plural(r.alterados, 'exemplar', 'exemplares')})` : 'Nada mudou'); }); },
+});
+// recorte da capa: o quadro já vem sugerido (fundo liso ao redor do livro); arrastar os cantos ajusta, arrastar o meio move
+function sugerirQuadro(img) {
+  const W = 160, H = Math.max(1, Math.round(img.height * W / img.width)), cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0, W, H);
+  const d = cx.getImageData(0, 0, W, H).data, px = (x, y) => { const i = (y * W + x) * 4; return [d[i], d[i + 1], d[i + 2]]; }, bw = Math.max(2, Math.round(Math.min(W, H) * 0.04));
+  let n = 0; const bg = [0, 0, 0]; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (x < bw || y < bw || x >= W - bw || y >= H - bw) { const p = px(x, y); bg[0] += p[0]; bg[1] += p[1]; bg[2] += p[2]; n++; }
+  bg.forEach((v, i) => { bg[i] = v / n; });
+  const col = new Array(W).fill(0), row = new Array(H).fill(0);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const p = px(x, y), dd = Math.abs(p[0] - bg[0]) + Math.abs(p[1] - bg[1]) + Math.abs(p[2] - bg[2]); if (dd > 70) { col[x]++; row[y]++; } }
+  const lim = (arr, tot) => { const t = tot * 0.25; let a = 0, b = arr.length - 1; while (a < b && arr[a] < t) a++; while (b > a && arr[b] < t) b--; return [a, b]; };
+  const [x0, x1] = lim(col, H), [y0, y1] = lim(row, W), k = img.width / W;
+  if (x1 - x0 < W * 0.2 || y1 - y0 < H * 0.2) return { x: img.width * 0.05, y: img.height * 0.05, w: img.width * 0.9, h: img.height * 0.9 };
+  return { x: x0 * k, y: y0 * k, w: (x1 - x0 + 1) * k, h: (y1 - y0 + 1) * k };
+}
+function recortarCapa(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), img0 = new Image();
+    img0.onerror = () => rej(new Error('Não foi possível ler a imagem.'));
+    img0.onload = () => {
+      let img = img0, Q; const R = { ang: 0 };
+      const girar = () => { const c = document.createElement('canvas'); c.width = img.height; c.height = img.width; const x = c.getContext('2d'); x.translate(c.width, 0); x.rotate(Math.PI / 2); x.drawImage(img, 0, 0); img = c; Q = sugerirQuadro(img); desenhar(); };
+      const anterior = $('#modal-root').innerHTML, voltar = v => { if (anterior && UI.filaCapas) $('#modal-root').innerHTML = anterior; else closeModal(); URL.revokeObjectURL(url); res(v); };
+      $('#modal-root').innerHTML = `<div class="overlay"><div class="modal rc-modal" role="dialog" aria-modal="true"><h2>Ajuste a capa</h2><p class="small muted">O quadro já foi sugerido. Arraste os cantos para ajustar ou o meio para mover.</p>
+        <div class="rc-area"><canvas id="rc-cv"></canvas></div>
+        <div class="inline wrap"><button type="button" class="btn sm" id="rc-sug">${ic('refresh')} Sugestão automática</button><button type="button" class="btn sm" id="rc-tudo">Imagem inteira</button><button type="button" class="btn sm" id="rc-gir">Girar</button></div>
+        <div class="modal-actions"><button class="btn" id="rc-canc">Cancelar</button><button class="btn primary" id="rc-ok">Usar esta capa</button></div></div></div>`;
+      const cv = $('#rc-cv'), cx = cv.getContext('2d'); let esc_ = 1;
+      const desenhar = () => { const maxW = Math.min(560, innerWidth - 60), maxH = Math.min(innerHeight * 0.55, 560); esc_ = Math.min(maxW / img.width, maxH / img.height, 1); cv.width = Math.round(img.width * esc_); cv.height = Math.round(img.height * esc_);
+        cx.drawImage(img, 0, 0, cv.width, cv.height); const q = { x: Q.x * esc_, y: Q.y * esc_, w: Q.w * esc_, h: Q.h * esc_ };
+        cx.fillStyle = 'rgba(0,0,0,.45)'; cx.fillRect(0, 0, cv.width, q.y); cx.fillRect(0, q.y + q.h, cv.width, cv.height - q.y - q.h); cx.fillRect(0, q.y, q.x, q.h); cx.fillRect(q.x + q.w, q.y, cv.width - q.x - q.w, q.h);
+        cx.strokeStyle = '#ffd166'; cx.lineWidth = 2; cx.strokeRect(q.x, q.y, q.w, q.h); cx.fillStyle = '#ffd166'; [[q.x, q.y], [q.x + q.w, q.y], [q.x, q.y + q.h], [q.x + q.w, q.y + q.h]].forEach(([a, b]) => { cx.fillRect(a - 7, b - 7, 14, 14); }); };
+      Q = sugerirQuadro(img); desenhar();
+      let arr = null; const pos = e => { const b = cv.getBoundingClientRect(); return { x: (e.clientX - b.left) * (cv.width / b.width) / esc_, y: (e.clientY - b.top) * (cv.height / b.height) / esc_ }; };
+      cv.addEventListener('pointerdown', e => { const p = pos(e), tol = 22 / esc_, cs = [['tl', Q.x, Q.y], ['tr', Q.x + Q.w, Q.y], ['bl', Q.x, Q.y + Q.h], ['br', Q.x + Q.w, Q.y + Q.h]].find(([, a, b]) => Math.abs(p.x - a) < tol && Math.abs(p.y - b) < tol);
+        arr = { modo: cs ? cs[0] : (p.x > Q.x && p.x < Q.x + Q.w && p.y > Q.y && p.y < Q.y + Q.h ? 'mover' : 'novo'), p0: p, q0: Object.assign({}, Q) }; if (arr.modo === 'novo') Q = { x: p.x, y: p.y, w: 1, h: 1 }; cv.setPointerCapture(e.pointerId); e.preventDefault(); });
+      cv.addEventListener('pointermove', e => { if (!arr) return; const p = pos(e), dx = p.x - arr.p0.x, dy = p.y - arr.p0.y, q = arr.q0, cl = (v, a, b) => Math.min(b, Math.max(a, v)), W = img.width, H = img.height;
+        if (arr.modo === 'mover') Q = { x: cl(q.x + dx, 0, W - q.w), y: cl(q.y + dy, 0, H - q.h), w: q.w, h: q.h };
+        else { let x0 = q.x, y0 = q.y, x1 = q.x + q.w, y1 = q.y + q.h; if (arr.modo === 'novo') { x0 = arr.p0.x; y0 = arr.p0.y; x1 = p.x; y1 = p.y; } else { if (arr.modo[1] === 'l') x0 += dx; else x1 += dx; if (arr.modo[0] === 't') y0 += dy; else y1 += dy; }
+          x0 = cl(x0, 0, W); x1 = cl(x1, 0, W); y0 = cl(y0, 0, H); y1 = cl(y1, 0, H); Q = { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.max(10, Math.abs(x1 - x0)), h: Math.max(10, Math.abs(y1 - y0)) }; }
+        desenhar(); });
+      cv.addEventListener('pointerup', () => { arr = null; });
+      $('#rc-sug').onclick = () => { Q = sugerirQuadro(img); desenhar(); }; $('#rc-tudo').onclick = () => { Q = { x: 0, y: 0, w: img.width, h: img.height }; desenhar(); }; $('#rc-gir').onclick = girar;
+      $('#rc-canc').onclick = () => voltar(null);
+      $('#rc-ok').onclick = () => { const c = document.createElement('canvas'), alt = Math.min(900, Math.round(Q.h)); c.height = alt; c.width = Math.max(1, Math.round(Q.w * alt / Q.h)); c.getContext('2d').drawImage(img, Q.x, Q.y, Q.w, Q.h, 0, 0, c.width, c.height); c.toBlob(b => voltar(b), 'image/jpeg', 0.9); };
+      window.__rc = { get Q() { return Q; }, img: () => img }; // usado nos testes
+    };
+    img0.src = url;
+  });
+}
+// fila de capas: fotografa as obras sem capa em sequência (pela ordem da estante)
+function filaCapasHTML() {
+  const F = UI.filaCapas, o = F.lista[F.i];
+  if (!o) return `<h2>Fotografar capas</h2><p>${F.feitas ? `Pronto! ${plural(F.feitas, 'capa salva', 'capas salvas')}.` : 'Nenhuma capa foi salva.'}</p><div class="modal-actions"><button class="btn primary" data-act="filaFim">Fechar</button></div>`;
+  const exs = S.exemplares.filter(e => e.obraId === o.id && e.status !== 'Baixado');
+  return `<h2>Fotografar capas <span class="small muted">${F.i + 1} de ${F.lista.length}</span></h2>
+    <div class="fc-obra"><b>${esc(o.titulo)}</b><span class="small muted">${esc(o.autor || '')}</span><span class="small">${exs.length ? `${esc(exs[0].local)} · <span class="mono">${exs.map(e => e.codigo).slice(0, 3).join(', ')}</span>` : ''}</span></div>
+    <div class="inline wrap"><label class="btn primary">${ic('camera')} Tirar foto<input type="file" accept="image/*" capture="environment" hidden data-ch="filaFoto"></label><label class="btn">${ic('upload')} Escolher da galeria<input type="file" accept="image/*" hidden data-ch="filaFoto"></label></div>
+    <p class="small muted">${plural(F.feitas, 'capa salva', 'capas salvas')} nesta rodada.</p>
+    <div class="modal-actions"><button class="btn" data-act="filaFim">Parar</button><button class="btn ghost" data-act="filaPular">Pular este livro</button></div>`;
+}
+const filaMostrar = () => { $('#modal-root .modal').innerHTML = filaCapasHTML(); };
+Object.assign(ACT, {
+  filaCapas() {
+    const loc = id => (S.exemplares.find(e => e.obraId === id && e.status !== 'Baixado') || {}).local || '~';
+    UI.filaCapas = { i: 0, feitas: 0, lista: S.obras.filter(o => !o.capa).sort((a, b) => loc(a.id).localeCompare(loc(b.id), 'pt-BR') || a.titulo.localeCompare(b.titulo, 'pt-BR')) };
+    openModal(filaCapasHTML());
+  },
+  filaPular() { UI.filaCapas.i++; filaMostrar(); },
+  filaFim() { const f = UI.filaCapas; UI.filaCapas = null; closeModal(); if (f && f.feitas) render(); },
+});
+CHG.filaFoto = el => { const f = el.files[0]; el.value = ''; if (!f) return; const F = UI.filaCapas, o = F.lista[F.i];
+  run(async () => { const blob = await recortarCapa(f); if (!blob) return; const capa = await capaReduzida(blob, 300, 20000); await api('obra.capas', { capas: [{ id: o.id, capa }] }, { msg: 'Salvando a capa…' }); o.capa = capa; F.feitas++; F.i++; filaMostrar(); toast('Capa salva'); }); };

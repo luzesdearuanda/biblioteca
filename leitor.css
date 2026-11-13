@@ -299,3 +299,20 @@ body.lp :focus-visible{outline:3px solid var(--lp-foco,#2563eb);outline-offset:2
 
 /* versão 1.13: relatar problema */
 .lp-prob{margin-top:14px}.lp-prob.mini{margin-top:0;margin-left:auto}.lv-topo .lp-prob.mini span,.ct-topo .lp-prob.mini span{display:none}@media(min-width:900px){.lv-topo .lp-prob.mini span,.ct-topo .lp-prob.mini span{display:inline}}
+
+/* versão 1.14: manutenção, cadeado e gaveta de seções/gêneros */
+.lp-tranca{margin-left:auto;display:inline-grid;opacity:.75}.lp-tranca svg{width:16px;height:16px}
+.lp-card .soon.lock{display:inline-flex;align-items:center;gap:4px}.lp-card .soon.lock svg{width:13px;height:13px}
+.lp-manut{text-align:center;display:grid;justify-items:center;gap:6px;padding:28px 20px}.lp-manut>svg{width:44px;height:44px;color:var(--lp-navy2,#1d3557)}.lp-manut h2{margin:4px 0 0}.lp-manut p{margin:0;max-width:520px}
+.lp-lock-nota{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px}.lp-lock-nota>svg{width:22px;height:22px;flex:none;margin-top:2px}.lp-lock-nota div{display:grid;gap:2px}
+.ct-gav-bt{display:none;align-items:center;gap:10px;width:100%;border:1px solid var(--lp-line);background:var(--lp-surface);color:var(--lp-ink);border-radius:12px;padding:12px 14px;font:inherit;font-size:15px;margin-bottom:10px;cursor:pointer;text-align:left}
+.ct-gav-bt svg{width:20px;height:20px;flex:none}.ct-gav-bt span{flex:1}.ct-gav-bt svg:last-child{width:18px;height:18px}
+@media (max-width:900px){.ct-gav-bt{display:flex}.ct-grade>.ct-secoes{display:none}
+  .modal.gav{position:fixed;left:0;right:0;bottom:0;top:auto;margin:0;max-width:none;width:100%;max-height:82vh;overflow:auto;border-radius:18px 18px 0 0}
+  .gav .ct-secoes{display:block;position:static;max-height:none;border:0;padding:0;overflow:visible}
+  .gav .ct-secoes>.ct-sec-tit{display:none}
+  .gav .ct-secoes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .gav .ct-sec{width:100%;border:1px solid var(--lp-line);border-radius:12px;padding:12px;white-space:normal;font-size:14px;flex-direction:column;align-items:flex-start;gap:6px}
+  .gav .ct-sec svg{width:24px;height:24px}.gav .ct-sec .ct-n{position:absolute;top:8px;right:8px}
+  .gav .ct-subs{display:contents}.gav .ct-sec.sub{border-style:dashed;flex-direction:row}
+}

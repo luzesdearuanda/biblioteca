@@ -11,6 +11,7 @@ const fmtCPF = v => { const d = String(v || '').replace(/\D/g, '').slice(0, 11);
 const hoje = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const ls = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) { } } };
 let V = 'entrar', PG = 'inicio', D = null, C = null, CPF = '', MENU = false;
+let MANUT = null, EST = null, GAV = null; // versão 1.14
 const F = { q: '', g: '', disp: '', ord: '', id: '' }, FC = { q: '', sec: '', toq: '', casa: false, id: '', ori: '', mid: '', modo: '' };
 const LOGO = 'logo.png';
 
@@ -70,15 +71,15 @@ async function api(action, payload = {}, msg) {
   try {
     let r; try { r = await fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify({ action, payload }), redirect: 'follow' }); } catch (e) { throw Object.assign(new Error('Sem conexão. Confira a internet e tente de novo.'), { code: 'NET' }); }
     const j = await r.json().catch(() => ({ ok: false, error: { code: 'NET', message: 'Resposta inválida do servidor. Tente de novo.' } }));
-    if (!j.ok) throw Object.assign(new Error(j.error.message), { code: j.error.code });
+    if (!j.ok) throw Object.assign(new Error(j.error.message), { code: j.error.code, extra: j.error.extra });
     return j.data.result;
   } finally { busy(false); }
 }
-async function run(fn) { try { await fn(); } catch (e) { if (e.code === 'AUTH' && ls.get('bibLeitor')) { sair(e.message); return; } toast(e.message, 'bad'); } }
+async function run(fn) { try { await fn(); } catch (e) { if (e.code === 'AUTH' && ls.get('bibLeitor')) { sair(e.message); return; } if (e.code === 'MANUTENCAO' && e.extra && e.extra.modulo === 'portal') { MANUT = e; V = 'manut'; render(); return; } toast(e.message, 'bad'); } }
 function sair(msg) { ttsFechar(); enviarPos(true); enviarFila(true); ls.set('bibLeitor', null); D = null; C = null; DG = null; LV = null; V = 'entrar'; PG = 'inicio'; render(); if (msg) toast(msg, 'bad'); }
 const token = () => ls.get('bibLeitor');
-async function carregar() { D = await api('leitor.dados', { token: token() }, 'Carregando…'); V = 'app'; render(); regEntrada(); }
-const irPara = pg => { if (pg !== PG) reg('pagina', 'portal', '', PG_NOME[pg] || pg); PG = pg; MENU = false; FC.id = ''; F.id = ''; FD.id = ''; if (pg !== 'virtual') { ttsFechar(); enviarPos(true); LV = null; } if (pg === 'virtual' && !DG) { run(async () => { DG = await api('leitor.digitais', { token: token() }, 'Carregando os livros digitais…'); render(); focoTela(); }); return; } if (pg === 'cantigas' && !C) { run(async () => { C = await api('leitor.cantigas', { token: token() }, 'Carregando as cantigas…'); render(); focoTela(); }); return; } render(); focoTela(); };
+async function carregar() { D = await api('leitor.dados', { token: token() }, 'Carregando…'); V = 'app'; MANUT = null; render(); regEntrada(); }
+const irPara = pg => { if (pg !== PG) reg('pagina', 'portal', '', PG_NOME[pg] || pg); PG = pg; MENU = false; FC.id = ''; F.id = ''; FD.id = ''; if (pg !== 'virtual') { ttsFechar(); enviarPos(true); LV = null; } if (pg === 'virtual' && !DG && modOk('virtual') && D.leitor.emDia) { run(async () => { DG = await api('leitor.digitais', { token: token() }, 'Carregando os livros digitais…'); render(); focoTela(); }); return; } if (pg === 'cantigas' && !C && modOk('cantigas')) { run(async () => { C = await api('leitor.cantigas', { token: token() }, 'Carregando as cantigas…'); render(); focoTela(); }); return; } render(); focoTela(); };
 
 /* ---------- login ---------- */
 const card = body => `<div class="login"><div class="login-card">
@@ -89,7 +90,9 @@ const card = body => `<div class="login"><div class="login-card">
 </div></div>`;
 const campo = (id, label, attrs = '') => `<div class="field" style="text-align:left"><label for="${id}">${label}</label><input id="${id}" ${attrs}></div>`;
 const LOGIN = {
-  entrar: () => card(`<form class="form" data-form="entrar" style="display:grid;gap:12px">
+  manut: () => card(`<div class="lp-manut">${IC.ferram}<h2>Portal em manutenção</h2><p>${esc(MANUT ? MANUT.message : 'Voltamos em breve.')}</p>${MANUT && MANUT.extra && MANUT.extra.prev ? `<p class="small muted">Previsão de volta: ${esc(fmtPrev(MANUT.extra.prev))}</p>` : ''}
+    <button class="btn primary" data-act="manutTentar">Tentar de novo</button>${token() ? '<button class="btn ghost" data-act="sair">Sair</button>' : ''}</div>`),
+  entrar: () => card(`${EST && EST.estado !== 'ativo' ? `<div class="note warn" style="text-align:left"><b>Portal em manutenção</b><span>${esc(EST.texto)}${EST.prev ? ' Previsão: ' + esc(fmtPrev(EST.prev)) + '.' : ''} Só a equipe da biblioteca consegue entrar agora.</span></div>` : ''}<form class="form" data-form="entrar" style="display:grid;gap:12px">
       ${campo('l-cpf', 'CPF', `inputmode="numeric" autocomplete="username" placeholder="000.000.000-00" value="${esc(fmtCPF(CPF))}" data-cpf`)}
       ${campo('l-senha', 'Senha', 'type="password" autocomplete="current-password"')}
       <button class="btn primary lg">Entrar</button></form>
@@ -117,11 +120,11 @@ const LOGIN = {
 };
 
 /* ---------- moldura (barra lateral, topo e navegação do celular) ---------- */
-const PAGINAS = () => [['inicio', 'Início', IC.home], ['catalogo', 'Catálogo Físico', IC.book], ['virtual', 'Biblioteca Virtual', IC.pdf]].concat(D.leitor.associado ? [['cantigas', 'Cantigas', IC.music]] : []);
-const navBtn = ([id, label, icon, soon]) => `<button class="lp-nav" data-act="pg" data-pg="${id}" ${PG === id ? 'aria-current="page"' : ''}>${icon}<span>${label}</span>${soon ? '<span class="soon">em breve</span>' : ''}</button>`;
+const PAGINAS = () => [['inicio', 'Início', IC.home], ['catalogo', 'Catálogo Físico', IC.book], ['virtual', 'Biblioteca Virtual', IC.pdf, '', !D.leitor.emDia], ['cantigas', 'Cantigas', IC.music]].filter(x => modVer(x[0]));
+const navBtn = ([id, label, icon, soon, tranca]) => `<button class="lp-nav" data-act="pg" data-pg="${id}" ${PG === id ? 'aria-current="page"' : ''}>${icon}<span>${label}</span>${soon ? '<span class="soon">em breve</span>' : ''}${tranca ? `<span class="lp-tranca" title="Exclusivo para associados">${IC.lock}<span class="sr"> (exclusivo para associados)</span></span>` : ''}</button>`;
 function moldura(conteudo) {
   const contas = [['perfil', 'Meu Perfil', IC.user], ['ajuda', 'Ajuda', IC.help]];
-  const bottom = [['inicio', 'Início', IC.home], ['catalogo', 'Catálogo', IC.book], ['virtual', 'Biblioteca', IC.pdf]].concat(D.leitor.associado ? [['cantigas', 'Cantigas', IC.music]] : [['ajuda', 'Ajuda', IC.help]]).concat([['perfil', 'Perfil', IC.user]]);
+  const bottom = [['inicio', 'Início', IC.home], ['catalogo', 'Catálogo', IC.book], ['virtual', 'Biblioteca', IC.pdf], ['cantigas', 'Cantigas', IC.music]].filter(x => modVer(x[0])).concat([['perfil', 'Perfil', IC.user]]);
   return `<a class="lp-pular" href="#conteudo">Pular para o conteúdo</a><div class="lp-shell">
     <aside class="lp-side"><div class="lp-brand"><img src="${LOGO}" alt=""><div><b>Luzes de Aruanda</b><span>Biblioteca da associação</span></div></div>
       <div class="lp-sec">Leitor</div>${PAGINAS().map(navBtn).join('')}<div class="lp-div"></div>${contas.map(navBtn).join('')}
@@ -139,16 +142,17 @@ function inicio() {
   const l = D.leitor, cards = [
     ['peach', IC.book, 'Catálogo Físico', 'Solicite a retirada de livros do acervo físico da nossa biblioteca.', 'Acessar catálogo', 'catalogo', ART.books, ''],
     ['green', IC.pdf, 'Biblioteca Virtual', 'Leia nossos livros em PDF, onde e quando quiser.', 'Acessar biblioteca', 'virtual', ART.tablet, 'green'],
-  ].concat(l.associado ? [['lav', IC.music, 'Cantigas', 'Assista, ouça e leia as cantigas da Umbanda.', 'Acessar cantigas', 'cantigas', ART.drum, 'purple']] : []);
+    ['lav', IC.music, 'Cantigas', 'Assista, ouça e leia as cantigas da Umbanda.', 'Acessar cantigas', 'cantigas', ART.drum, 'purple'],
+  ].filter(x => modVer(x[5]));
   const livros = D.obras.slice().sort((a, b) => String(b.desde).localeCompare(String(a.desde))).slice(0, 8).map(o => ({ tipo: 'Livro', t: o.titulo, img: o.capa ? o.capa : o.isbn ? `https://covers.openlibrary.org/b/isbn/${o.isbn.replace(/\D/g, '')}-M.jpg?default=false` : '', go: 'Ver no catálogo', act: `data-act="verObra" data-id="${o.id}"` }));
   const cants = (D.novasCantigas || []).map(c => ({ tipo: 'Cantiga', t: c.titulo, go: c.video || c.audio ? 'Assistir / Ouvir' : 'Ler', act: `data-act="verCantiga" data-id="${c.id}"` }));
   const digs = (D.digNovos || []).map(d => ({ tipo: 'Digital', t: d.titulo, img: d.capa, go: 'Ler agora', act: `data-act="dVer" data-id="${d.id}"` })); // versão 1.10.1
   const dest = []; for (let i = 0; i < Math.max(livros.length, cants.length, digs.length); i++) { if (digs[i]) dest.push(digs[i]); if (livros[i]) dest.push(livros[i]); if (cants[i]) dest.push(cants[i]); }
   return `${cabecalho(`Olá, ${esc(l.primeiroNome)}!`, 'Seja bem-vindo ao nosso espaço de leitura e cultura.')}
     ${D.bloqueios.length ? `<div class="note warn"><b>No momento você não pode retirar livros</b><span>${D.bloqueios.map(esc).join(' ')}</span></div>` : ''}
-    <section class="lp-hero"><div><h2>Conhecimento também é caminho de luz.</h2><p>Explore nosso acervo de livros${l.associado ? ', cantigas' : ''} e muito mais, conectando-se com a nossa cultura.</p><button class="lp-btn dark" data-act="pg" data-pg="catalogo">Começar agora ${IC.arrow}</button></div></section>
+    <section class="lp-hero"><div><h2>Conhecimento também é caminho de luz.</h2><p>Explore nosso acervo de livros, cantigas e muito mais, conectando-se com a nossa cultura.</p><button class="lp-btn dark" data-act="pg" data-pg="catalogo">Começar agora ${IC.arrow}</button></div></section>
     <h2 class="lp-h2">Acesso Rápido</h2>
-    <div class="lp-quick">${cards.map(([cls, icon, t, d, b, pg, art, btn]) => { const soon = pg === 'virtual' && !D.digitaisN; return `<div class="lp-card ${cls}" ${soon ? '' : `data-act="pg" data-pg="${pg}"`}>${soon ? '<span class="soon">Em breve</span>' : ''}<div class="art">${art}</div><div class="ico">${icon}</div><div><h3>${t}</h3><p>${d}</p></div>
+    <div class="lp-quick">${cards.map(([cls, icon, t, d, b, pg, art, btn]) => { const soon = pg === 'virtual' && !D.digitaisTotal, tr = pg === 'virtual' && !l.emDia && !soon; return `<div class="lp-card ${cls}" ${soon ? '' : `data-act="pg" data-pg="${pg}"`}>${soon ? '<span class="soon">Em breve</span>' : tr ? `<span class="soon lock">${IC.lock} Exclusivo para associados</span>` : ''}<div class="art">${art}</div><div class="ico">${icon}</div><div><h3>${t}</h3><p>${d}</p></div>
       <button class="lp-btn ${btn}" ${soon ? 'disabled' : `data-act="pg" data-pg="${pg}"`}>${b} ${IC.arrow}</button>${soon ? '' : IC.right.replace('<svg', '<svg class="chev"')}</div>`; }).join('')}</div>
     ${dest.length ? `<h2 class="lp-h2 has-more">Destaques <button class="more" data-act="pg" data-pg="catalogo">Ver todos →</button></h2>
       <div class="lp-dest-wrap"><button class="lp-arrow l" data-act="rolar" data-d="-1" aria-label="Anterior">${IC.left}</button><div class="lp-dest" id="dest">${dest.map(x => `<button class="lp-item" ${x.act}><span class="th">${x.img ? `<img src="${x.img}" alt="" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(ART.bookThumb))">` : x.tipo === 'Cantiga' ? ART.notes : ART.bookThumb}</span>
@@ -191,7 +195,7 @@ const isbnLimpo = s => String(s || '').replace(/[^0-9Xx]/g, '');
 const capaObra = (o, grande) => o.capa ? `<img src="${esc(o.capa)}" alt="${grande ? 'Capa de ' + esc(o.titulo) : ''}" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(ART.bookThumb))">` : isbnLimpo(o.isbn).length >= 10 ? `<img src="https://covers.openlibrary.org/b/isbn/${isbnLimpo(o.isbn)}-${grande ? 'L' : 'M'}.jpg?default=false" alt="${grande ? 'Capa de ' + esc(o.titulo) : ''}" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(ART.bookThumb))">` : ART.bookThumb;
 const pendentes = () => new Set(D.solicitacoes.filter(s => s.status === 'pendente').map(s => s.obraId));
 const dispTxt = o => o.disp ? `Disponíveis: ${o.disp} de ${o.total}` : o.total === 1 ? 'Emprestado no momento' : 'Todos emprestados no momento';
-const pedirBt = (o, pend) => pend.has(o.id) ? '<span class="pill warn">pedido feito</span>' : o.disp && !D.bloqueios.length ? `<button class="lp-btn ct-b" data-act="pedir" data-id="${o.id}">${IC.book}<span>Pedir retirada</span></button>` : '';
+const pedirBt = (o, pend) => !modOk('pedidos') ? '' : pend.has(o.id) ? '<span class="pill warn">pedido feito</span>' : o.disp && !D.bloqueios.length ? `<button class="lp-btn ct-b" data-act="pedir" data-id="${o.id}">${IC.book}<span>Pedir retirada</span></button>` : '';
 const obrasFiltradas = () => { const q = norm(F.q); return ordenar(D.obras.filter(o => naGen(o, F.g) && (F.disp !== 'sim' || o.disp) && (!q || norm(`${o.titulo} ${o.autor} ${o.editora}`).includes(q))), F.ord, o => o.desde); };
 function listaObras() {
   const l = obrasFiltradas(), pend = pendentes(), cont = contTxt(l.length, F.g);
@@ -204,9 +208,10 @@ function listaObras() {
 }
 const avisoBloqueio = () => D.bloqueios.length ? `<div class="note warn"><b>No momento você não pode retirar livros</b><span>${D.bloqueios.map(esc).join(' ')}</span></div>` : '';
 function catalogo() {
+  if (!modOk('catalogo')) return manutPagina('catalogo', 'Catálogo Físico');
   if (F.id) { const o = D.obras.find(x => x.id === F.id); if (o) return obraTela(o); F.id = ''; }
   return `${cabecalho('Catálogo Físico', 'Busque no acervo e peça a retirada. A biblioteca confirma e você recebe o protocolo para assinar.')}
-    <div class="ct-grade">${painelGen(D.obras, F.g, 'oGen', 'Todos os livros')}
+    ${avisoAdm('catalogo')}${gavBt('gen', F.g ? genNome(F.g) : 'Todos os livros', () => painelGen(D.obras, F.g, 'oGen', 'Todos os livros'))}<div class="ct-grade">${painelGen(D.obras, F.g, 'oGen', 'Todos os livros')}
     <div class="ct-conteudo"><div class="ct-filtros"><span class="ct-ftit">${IC.filtro}<b>Filtros:</b></span>
         <select data-ch="odisp" aria-label="Disponibilidade"><option value="">Disponibilidade (todos)</option><option value="sim" ${F.disp === 'sim' ? 'selected' : ''}>Só os disponíveis</option></select>${selOrd('oord', F.ord)}</div>
       <label class="search ct-busca"><span class="sr">Buscar no catálogo</span>${IC.search}<input id="q" data-in="q" type="search" value="${esc(F.q)}" placeholder="Buscar por título, autor ou editora" autocomplete="off"></label>
@@ -249,7 +254,7 @@ function continuarCard() {
 }
 function digitalTela(d) {
   const p = posDe(d.id), fis = d.obraId && D.obras.find(o => o.id === d.obraId);
-  const dados = [['Gênero', d.genero && genNome(d.genero)], ['Ano', d.ano], ['Acesso', d.soAssociados ? 'Só para associados' : 'Todos os leitores'], ['Autorização', d.autorizacao]].filter(x => x[1]);
+  const dados = [['Gênero', d.genero && genNome(d.genero)], ['Ano', d.ano], ['Autorização', d.autorizacao]].filter(x => x[1]);
   return `<div class="ct-topo"><button class="btn sm ghost" data-act="dVoltar">← Voltar aos livros</button></div>
     <article class="bk-det"><div class="bk-capa">${capaDig(d, true)}</div>
       <div class="bk-info"><h1 id="tela-tit" tabindex="-1">${esc(d.titulo)}</h1><p class="bk-autor">${esc(d.autor || 'Autor não informado')}</p>
@@ -261,6 +266,8 @@ function digitalTela(d) {
         ${fis ? `<div class="lp-panel bk-tambem">${IC.book}<div><b>Também no acervo físico</b><span class="small muted">${dispTxt(fis)} para retirada.</span></div><button class="lp-btn light ct-b" data-act="oVer" data-id="${fis.id}">${IC.book}<span>Ver no catálogo</span></button></div>` : ''}</div></article>`;
 }
 function virtual() {
+  if (!modOk('virtual')) return manutPagina('virtual', 'Biblioteca Virtual');
+  if (!D.leitor.emDia) return trancaPagina();
   if (!DG) return cabecalho('Biblioteca Virtual') + '<p class="muted">Carregando…</p>';
   if (LV) { const d = LV.d; return `<div class="lv-topo"><button class="btn sm ghost" data-act="lvFechar">← ${FD.id ? 'Voltar ao livro' : 'Voltar aos livros'}</button><div class="lv-tit"><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || '')}</span></div>${probBt('livro', d.id, d.titulo, true)}</div>
       ${LV.pdf ? `<div class="lv-barra" role="toolbar" aria-label="Leitura"><button class="lp-btn light" data-act="lvPag" data-d="-1" aria-label="Página anterior">${IC.left}</button><span class="lv-ind"><input id="lv-ir" inputmode="numeric" value="${LV.pag}" aria-label="Página atual (digite para ir)"> de ${LV.total}</span><button class="lp-btn light" data-act="lvPag" data-d="1" aria-label="Próxima página">${IC.right}</button>
@@ -271,7 +278,7 @@ function virtual() {
       : `<div class="lp-panel"><p id="lv-prog" role="status">Abrindo o livro…</p></div>`}`; }
   if (FD.id) { const d = DG.digitais.find(x => x.id === FD.id); if (d) return digitalTela(d); FD.id = ''; }
   return `${cabecalho('Biblioteca Virtual', 'Leia os livros digitais da biblioteca aqui mesmo, no celular ou no computador.')}
-    ${continuarCard()}<div class="ct-grade">${painelGen(DG.digitais, FD.g, 'dGen', 'Todos os livros')}
+    ${avisoAdm('virtual')}${continuarCard()}${gavBt('gen', FD.g ? genNome(FD.g) : 'Todos os livros', () => painelGen(DG.digitais, FD.g, 'dGen', 'Todos os livros'))}<div class="ct-grade">${painelGen(DG.digitais, FD.g, 'dGen', 'Todos os livros')}
     <div class="ct-conteudo"><div class="ct-filtros"><span class="ct-ftit">${IC.filtro}<b>Filtros:</b></span>${selOrd('dord', FD.ord)}
         <label class="check small ct-casa"><input type="checkbox" data-ch="dcom" ${FD.comecei ? 'checked' : ''}> Só os que comecei</label></div>
       <label class="search ct-busca"><span class="sr">Buscar na Biblioteca Virtual</span>${IC.search}<input data-in="dq" type="search" value="${esc(FD.q)}" placeholder="Buscar por título, autor ou assunto" autocomplete="off"></label>
@@ -446,7 +453,7 @@ const FAQ = [
   ['Esqueci a minha senha.', 'Na tela de entrada, use "Primeiro acesso ou esqueci a senha": enviamos um código para o seu e-mail. Sem e-mail no cadastro, peça o código a um operador da biblioteca.'],
   ['Posso baixar ou imprimir os livros digitais?', 'Não. Os livros da Biblioteca Virtual são lidos só aqui no portal, e cada página mostra o nome de quem está lendo. O portal lembra a última página que você leu em cada livro.'],
   ['O portal registra o que eu acesso?', 'Sim. Para cuidar do acervo, a biblioteca registra as entradas no portal e os livros, cantigas e páginas abertos, guardados por 12 meses. Só os administradores da biblioteca veem esses registros, que não são compartilhados com ninguém.'],
-  ['Quem vê as cantigas?', 'As cantigas são só para os associados da casa, com o cadastro em dia na Secretaria.'],
+  ['Quem vê as cantigas?', 'Todos os leitores veem as cantigas. As cantigas da casa e a Biblioteca Virtual são exclusivas dos associados com as mensalidades em dia na Secretaria.'],
 ];
 const ajuda = () => `${cabecalho('Ajuda', 'Dúvidas mais comuns sobre o portal da biblioteca.')}<section class="lp-panel lp-faq">${FAQ.map(([q, a]) => `<details><summary>${q}</summary><p>${a}</p></details>`).join('')}</section>
   <section class="lp-panel"><h2>Encontrou um erro?</h2><p class="muted">Conte para a biblioteca o que não funcionou: uma página que não abre, um botão, um livro ou uma cantiga com problema.</p>${probBt('portal', '', 'Portal')}</section>
@@ -512,21 +519,24 @@ function cantigaTela(c) {
       <div class="ct-letra" id="ct-letra"><h1>${esc(c.titulo)}</h1>${letra}${c.youtube ? `<p class="small"><a href="https://www.youtube.com/watch?v=${c.youtube}" target="_blank" rel="noopener">Abrir no YouTube</a></p>` : ''}</div></div>`;
 }
 function cantigas() {
+  if (!modOk('cantigas')) return manutPagina('cantigas', 'Cantigas');
   if (!C) return cabecalho('Cantigas') + '<p class="muted">Carregando…</p>';
   if (FC.id) { const c = C.cantigas.find(x => x.id === FC.id); if (c) return cantigaTela(c); FC.id = ''; }
   const pais = C.secoes.filter(x => !x.paiId).sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, 'pt-BR')), secAtual = C.secoes.find(y => y.id === FC.sec) || {}, paiSel = secAtual.paiId || FC.sec;
   const subsDe = id => C.secoes.filter(x => x.paiId === id).sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, 'pt-BR'));
   const item = (x, sub) => `<button type="button" class="ct-sec${sub ? ' sub' : ''}" data-act="cSec" data-id="${x.id}" aria-pressed="${FC.sec === x.id || (!sub && paiSel === x.id)}">${sub ? '' : iconeSec(x)}<span>${esc(x.nome)}</span>${!sub && subsDe(x.id).length ? `<span class="chv${paiSel === x.id ? ' aberto' : ''}">${IC.right}</span>` : ''}</button>`;
   const sel = (k, rot, ops) => `<select data-ch="${k}" aria-label="${rot}"><option value="">${rot} (todos)</option>${ops}</select>`;
-  return `${cabecalho('Cantigas', 'Assista, ouça e leia as cantigas da casa.')}
-    <div class="ct-grade"><nav class="ct-secoes" aria-label="Seções"><div class="ct-sec-tit">${IC.camadas}<b>Seções</b></div>
+  const navSec = () => `<nav class="ct-secoes" aria-label="Seções"><div class="ct-sec-tit">${IC.camadas}<b>Seções</b></div>
       <button type="button" class="ct-sec" data-act="cSec" data-id="" aria-pressed="${!FC.sec}">${sv(ICONES_SEC.nota)}<span>Todas as cantigas</span></button>
-      ${pais.map(p => item(p) + (paiSel === p.id ? `<div class="ct-subs">${subsDe(p.id).map(s => item(s, true)).join('')}</div>` : '')).join('')}</nav>
+      ${pais.map(p => item(p) + (paiSel === p.id ? `<div class="ct-subs">${subsDe(p.id).map(s => item(s, true)).join('')}</div>` : '')).join('')}</nav>`;
+  return `${cabecalho('Cantigas', 'Assista, ouça e leia as cantigas da Umbanda.')}${avisoAdm('cantigas')}
+    ${C.casaOcultas ? `<div class="lp-panel lp-lock-nota">${IC.lock}<div><b>${C.casaOcultas === 1 ? '1 cantiga da casa é exclusiva' : C.casaOcultas + ' cantigas da casa são exclusivas'} dos associados</b><span class="small muted">${esc(MSG_PERFIL[C.motivo] || '')}</span></div></div>` : ''}
+    ${gavBt('sec', secAtual.nome || 'Todas as cantigas', navSec)}<div class="ct-grade">${navSec()}
     <div class="ct-conteudo"><div class="ct-filtros"><span class="ct-ftit">${IC.filtro}<b>Filtros:</b></span>
         ${sel('ctoq', 'Toque', C.toques.map(t => `<option value="${t.id}" ${FC.toq === t.id ? 'selected' : ''}>${esc(t.nome)}</option>`).join(''))}
         ${sel('cori', 'Origem', Object.keys(ORIG).map(k => `<option value="${k}" ${FC.ori === k ? 'selected' : ''}>${ORIG[k]}</option>`).join(''))}
         ${sel('cmid', 'Mídia', Object.keys(MIDIA).map(k => `<option value="${k}" ${FC.mid === k ? 'selected' : ''}>${MIDIA[k][0]}</option>`).join(''))}
-        <label class="check small ct-casa"><input type="checkbox" data-ch="ccasa" ${FC.casa ? 'checked' : ''}> Só da casa</label></div>
+        ${D.leitor.emDia ? `<label class="check small ct-casa"><input type="checkbox" data-ch="ccasa" ${FC.casa ? 'checked' : ''}> Só da casa</label>` : ''}</div>
       <label class="search ct-busca"><span class="sr">Buscar</span>${IC.search}<input data-in="cq" value="${esc(FC.q)}" placeholder="Buscar cantiga pelo título ou trecho da letra" autocomplete="off"></label>
       <div id="clista" class="cant-lista">${listaCantigas()}</div></div></div>`;
 }
@@ -621,7 +631,7 @@ document.addEventListener('change', e => { const k = e.target.dataset.ch;
   if (k === 'dord' || k === 'dcom') { if (k === 'dord') FD.ord = e.target.value; else FD.comecei = e.target.checked; $('#dlista').innerHTML = listaDigitais(); avisoLista('#dlista'); }
   if (k === 'ttsVel') { TTS.rate = +e.target.value || 1; ls.set('bibVel', TTS.rate); if (TTS.lendo) { TTS.gen++; speechSynthesis.cancel(); ttsFalar(TTS.gen); } }
   if (k === 'ttsVoz') { TTS.voz = e.target.value; ls.set('bibVoz', TTS.voz); if (TTS.lendo) { TTS.gen++; speechSynthesis.cancel(); ttsFalar(TTS.gen); } } if (e.target.id === 'lv-ir') irPag(parseInt(e.target.value, 10) || 1); if (k === 'g') { F.g = e.target.value; $('#lista').innerHTML = listaObras(); } if (k === 'ctoq') { FC.toq = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'cori') { FC.ori = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'cmid') { FC.mid = e.target.value; $('#clista').innerHTML = listaCantigas(); } if (k === 'ccasa') { FC.casa = e.target.checked; $('#clista').innerHTML = listaCantigas(); } });
-if (token()) run(carregar).then(() => { if (!D) { V = 'entrar'; render(); } }); else render();
+if (token()) run(carregar).then(() => { if (!D && V !== 'manut') { V = 'entrar'; render(); } }); else render();
 // versão 1.7: leitor de PDF — setas do teclado mudam a página; sem menu do botão direito; redesenha ao girar o celular
 document.addEventListener('keydown', e => { if (!LV || !LV.pdf || LV.modo === 'rolagem' || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return; if (e.key === 'ArrowRight') irPag(LV.pag + 1); if (e.key === 'ArrowLeft') irPag(LV.pag - 1); });
 // Esc fecha a janela ou a tela aberta (do mais recente para o mais antigo)
@@ -668,7 +678,7 @@ const PROB_CAT = {
   portal: ['Não consigo entrar', 'Página não carrega', 'Botão não funciona', 'Problema no celular', 'Sugestão', 'Outro'],
 };
 let PROB_ATUAL = null;
-const probBt = (tipo, id, alvo, mini) => `<button class="lp-btn light ct-b lp-prob${mini ? ' mini' : ''}" data-act="prob" data-tipo="${tipo}" data-id="${esc(id)}" data-alvo="${esc(alvo)}" aria-label="Relatar um problema${tipo === 'portal' ? ' no portal' : ': ' + esc(alvo)}">${IC.flag}<span>Relatar problema</span></button>`;
+const probBt = (tipo, id, alvo, mini) => !modOk('problemas') ? '' : `<button class="lp-btn light ct-b lp-prob${mini ? ' mini' : ''}" data-act="prob" data-tipo="${tipo}" data-id="${esc(id)}" data-alvo="${esc(alvo)}" aria-label="Relatar um problema${tipo === 'portal' ? ' no portal' : ': ' + esc(alvo)}">${IC.flag}<span>Relatar problema</span></button>`;
 function probAbrir(tipo, id, alvo) {
   PROB_ATUAL = { tipo, id, alvo, pag: tipo === 'livro' && LV && LV.pdf && LV.d.id === id ? LV.pag : 0 };
   modal(`<h2>Relatar um problema</h2>${tipo !== 'portal' ? `<p><b>${esc(alvo)}</b>${PROB_ATUAL.pag ? `<br><span class="small muted">Página ${PROB_ATUAL.pag}</span>` : ''}</p>` : ''}
@@ -685,3 +695,31 @@ function autoProb(tipo, alvoId, alvo, cat, e) {
   try { fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify({ action: 'leitor.problema', payload: { token: token(), tipo, alvoId, alvo, categoria: cat + ' (automático)', mensagem: `${m} · ${APARELHO} · ${navigator.userAgent.slice(0, 120)}`, origem: 'automatico' } }), redirect: 'follow' }).catch(() => { }); } catch (x) { }
 }
 addEventListener('error', e => { if (!e.message || /Script error|ResizeObserver/.test(e.message)) return; autoProb('portal', '', PG_NOME[PG] || 'Portal', 'Erro no portal', `${e.message} (${String(e.filename || '').split('/').pop()}:${e.lineno || ''})`); });
+
+/* ---------- versão 1.14: manutenção por módulo, portal por perfil e gaveta de seções/gêneros no celular ---------- */
+Object.assign(IC, {
+  lock: sv('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+  ferram: sv('<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>'),
+  baixo: sv('<path d="M6 9l6 6 6-6"/>', 2),
+});
+const MSG_PERFIL = { associado: 'Exclusivo para associados da casa. Fale com a Secretaria para se associar.', mensalidade: 'Disponível para associados com as mensalidades em dia. Regularize na Secretaria para voltar a acessar.' };
+const MOD = k => (D && D.modulos && D.modulos[k]) || { estado: 'ativo', ver: true, texto: '' };
+const modOk = k => MOD(k).estado === 'ativo' || MOD(k).ver;            // pode usar (administrador sempre pode)
+const modVer = k => !D || !D.modulos || !D.modulos[k] || MOD(k).estado !== 'oculto' || MOD(k).ver; // aparece no menu
+const fmtPrev = p => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(p) ? `${p.slice(8, 10)}/${p.slice(5, 7)} às ${p.slice(11)}` : p;
+const avisoAdm = k => { const m = MOD(k), pt = MOD('portal'); const x = pt.estado !== 'ativo' ? pt : m; return x.estado !== 'ativo' && D.modulos.admin ? `<div class="note warn"><b>${x.estado === 'oculto' ? 'Oculto' : 'Em manutenção'} para os leitores</b><span>Você vê porque é administrador. Aviso aos leitores: “${esc(x.texto)}”</span></div>` : ''; };
+function manutPagina(k, titulo) { const m = MOD(k); return `${cabecalho(titulo)}<section class="lp-panel lp-manut">${IC.ferram}<h2>${m.estado === 'oculto' ? 'Indisponível no momento' : 'Em manutenção'}</h2><p>${esc(m.texto)}</p>${m.prev ? `<p class="small muted">Previsão de volta: ${esc(fmtPrev(m.prev))}</p>` : ''}</section>`; }
+function trancaPagina() {
+  const l = D.leitor, n = D.digitaisTotal || 0;
+  return `${cabecalho('Biblioteca Virtual')}<section class="lp-panel lp-manut lp-tranca-pg">${IC.lock}<h2>Exclusivo para associados</h2><p>${esc(MSG_PERFIL[l.motivo] || '')}</p>
+    ${n ? `<p class="small muted">${n === 1 ? '1 livro digital disponível' : n + ' livros digitais disponíveis'} para os associados.</p>` : ''}
+    <a class="lp-btn green" href="https://wa.me/${WHATS}?text=${encodeURIComponent(l.motivo === 'mensalidade' ? 'Olá! Quero regularizar minhas mensalidades para voltar a acessar a Biblioteca Virtual.' : 'Olá! Quero saber como me associar à casa.')}" target="_blank" rel="noopener">Falar com a casa ${IC.arrow}</a></section>`;
+}
+// gaveta (celular): botão "Gênero: … ▾" / "Seção: … ▾" abre a grade com ícones
+function gavBt(tipo, atual, fn) { GAV = { tipo, fn }; return `<button type="button" class="ct-gav-bt" data-act="gav" aria-haspopup="dialog">${tipo === 'sec' ? IC.camadas : IC.book}<span>${tipo === 'sec' ? 'Seção' : 'Gênero'}: <b>${esc(atual)}</b></span>${IC.baixo}</button>`; }
+function gavAbrir() { if (!GAV) return; modal(`<h2>${GAV.tipo === 'sec' ? 'Escolha a seção' : 'Escolha o gênero'}</h2><div class="ct-gav">${GAV.fn()}</div><div class="modal-actions"><button class="btn" data-act="fechar">Fechar</button></div>`); const m = $('#modal-root .modal'); if (m) m.classList.add('gav'); }
+ACT.gav = () => gavAbrir();
+ACT.manutTentar = () => { MANUT = null; if (token()) run(carregar); else { V = 'entrar'; estadoPortal(); render(); } };
+['oGen', 'dGen', 'cSec'].forEach(k => { const f = ACT[k]; ACT[k] = (t, e) => { const naGav = !!t.closest('.gav'); f(t, e); if (!naGav) return; const temSub = k === 'cSec' && t.dataset.id && C && C.secoes.some(x => x.paiId === t.dataset.id); if (temSub) gavAbrir(); else modal(''); }; });
+function estadoPortal() { try { fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify({ action: 'leitor.estado', payload: {} }), redirect: 'follow' }).then(r => r.json()).then(j => { if (j.ok) { EST = j.data.result; if (V === 'entrar') render(); } }).catch(() => { }); } catch (e) { } }
+estadoPortal();

@@ -496,3 +496,10 @@ button.link{background:none;border:0;padding:0;color:var(--brand);font:inherit;f
 .acs-top{list-style:none;margin:0;padding:0;counter-reset:t}.acs-top li{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:2px 10px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line,#e3e6ec);counter-increment:t}
 .acs-top li::before{content:counter(t);grid-row:span 2;color:var(--muted,#6b7280);font-weight:700}.acs-top li span:first-of-type{overflow-wrap:anywhere}.acs-top li .small{grid-column:2/4}
 .acs-det summary{cursor:pointer;font-weight:600;margin:10px 0}
+
+/* versão 1.14: módulos do portal, recorte de capa e fila de capas */
+.pm-lista{display:grid;gap:10px}.pm-linha{border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:8px}.pm-tit{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pm-campos{display:grid;grid-template-columns:180px minmax(0,1fr) 200px;gap:8px;align-items:end}.pm-campos label{display:grid;gap:4px}.pm-ag summary{cursor:pointer;font-size:.9rem;color:var(--muted)}.pm-ag .pm-campos{grid-template-columns:repeat(3,minmax(0,1fr)) auto;margin-top:8px}
+@media (max-width:760px){.pm-campos,.pm-ag .pm-campos{grid-template-columns:1fr}}
+.modal.rc-modal{max-width:640px}.rc-area{display:grid;place-items:center;background:#111;border-radius:10px;padding:8px}#rc-cv{max-width:100%;touch-action:none;cursor:crosshair}
+.fc-obra{display:grid;gap:2px;padding:12px;border:1px solid var(--line);border-radius:10px}
