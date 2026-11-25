@@ -1,4 +1,4 @@
-/* Portal do leitor (versão 1.7): início, catálogo físico, biblioteca virtual (PDF só na tela, com marca d'água), cantigas (associados), perfil e ajuda.
+/* Portal do leitor (versão 2.0 — novo visual: vitrine, entrada e catálogo; versão 1.7 na origem): início, catálogo físico, biblioteca virtual (PDF só na tela, com marca d'água), cantigas (associados), perfil e ajuda.
    Login com CPF e senha própria. Visual do mockup aprovado em 04/11/2026. */
 const CFG = window.BIBLIOTECA_CONFIG || {};
 const WHATS = '5554996164144';
@@ -81,83 +81,165 @@ const token = () => ls.get('bibLeitor');
 async function carregar() { D = await api('leitor.dados', { token: token() }, 'Carregando…'); V = 'app'; MANUT = null; render(); regEntrada(); }
 const irPara = pg => { if (pg !== PG) reg('pagina', 'portal', '', PG_NOME[pg] || pg); PG = pg; MENU = false; FC.id = ''; F.id = ''; FD.id = ''; if (pg !== 'virtual') { ttsFechar(); enviarPos(true); LV = null; } if (pg === 'virtual' && !DG && modOk('virtual') && D.leitor.emDia) { run(async () => { DG = await api('leitor.digitais', { token: token() }, 'Carregando os livros digitais…'); render(); focoTela(); }); return; } if (pg === 'cantigas' && !C && modOk('cantigas')) { run(async () => { C = await api('leitor.cantigas', { token: token() }, 'Carregando as cantigas…'); render(); focoTela(); }); return; } render(); focoTela(); };
 
-/* ---------- login ---------- */
-const card = body => `<div class="login"><div class="login-card">
-  <div class="logo-disc"><img src="${LOGO}" alt="Logo da Associação Centro de Umbanda Luzes de Aruanda"></div>
-  <div style="display:grid;gap:6px"><div class="eyebrow">Portal do leitor</div><h1>Biblioteca Luzes de Aruanda</h1><p class="muted">Livros, cantigas e muito mais da nossa casa.</p></div>
-  ${body}
-  <p class="small muted"><a href="https://wa.me/${WHATS}?text=${encodeURIComponent(WHATS_MSG)}" target="_blank" rel="noopener">Não tenho cadastro: pedir pelo WhatsApp</a> · <a href="privacidade.html" target="_blank" rel="noopener">Privacidade</a></p>
-</div></div>`;
-const campo = (id, label, attrs = '') => `<div class="field" style="text-align:left"><label for="${id}">${label}</label><input id="${id}" ${attrs}></div>`;
+Object.assign(IC, {
+  olho: sv('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
+  olhoX: sv('<path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3 3.9M6.5 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'),
+  relogio: sv('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>')
+});
+/* ---------- entrada (versão 2.0): tela dividida — apresentação da biblioteca + formulário ---------- */
+const card = (body, titulo = 'Entrar no portal', sub = 'Use o seu CPF e a sua senha.') => `<div class="lx-entrada">
+  <section class="lx-ent-arte" aria-hidden="true"><div class="lx-luz"></div>
+    <div class="lx-ent-arte-in"><p class="lx-eyebrow claro">Biblioteca Luzes de Aruanda</p>
+      <p class="lx-ent-frase">Conhecimento também é <em>caminho de luz.</em></p>
+      <p class="lx-ent-sub">Livros, leituras digitais e cantigas da nossa casa, num só lugar.</p>
+      <ul class="lx-ent-trio"><li>${IC.book}<span><b>Catálogo físico</b>Peça a retirada pelo portal</span></li><li>${IC.pdf}<span><b>Biblioteca Virtual</b>Leia no celular ou no computador</span></li><li>${IC.music}<span><b>Cantigas</b>Letra, áudio e vídeo</span></li></ul></div></section>
+  <section class="lx-ent-painel"><div class="lx-ent-card">
+    <div class="lx-ent-marca"><img src="${LOGO}" alt="Logo da Associação Centro de Umbanda Luzes de Aruanda"><div><span class="lx-eyebrow">Portal do leitor</span><b>Biblioteca Luzes de Aruanda</b></div></div>
+    <div class="lx-ent-tit"><h1>${titulo}</h1>${sub ? `<p>${sub}</p>` : ''}</div>
+    ${body}
+    <p class="lx-ent-rodape"><a href="https://wa.me/${WHATS}?text=${encodeURIComponent(WHATS_MSG)}" target="_blank" rel="noopener">Não tenho cadastro: pedir pelo WhatsApp</a><span aria-hidden="true">·</span><a href="privacidade.html" target="_blank" rel="noopener">Privacidade</a></p>
+  </div></section></div>`;
+const campo = (id, label, attrs = '') => `<div class="field lx-campo"><label for="${id}">${label}</label><input id="${id}" ${attrs}></div>`;
+const campoSenha = (id, label, attrs = '') => `<div class="field lx-campo"><label for="${id}">${label}</label><div class="lx-senha"><input id="${id}" type="password" ${attrs}><button type="button" class="lx-olho" data-act="verSenha" aria-label="Mostrar a senha" aria-pressed="false">${IC.olho}</button></div></div>`;
 const LOGIN = {
-  manut: () => card(`<div class="lp-manut">${IC.ferram}<h2>Portal em manutenção</h2><p>${esc(MANUT ? MANUT.message : 'Voltamos em breve.')}</p>${MANUT && MANUT.extra && MANUT.extra.prev ? `<p class="small muted">Previsão de volta: ${esc(fmtPrev(MANUT.extra.prev))}</p>` : ''}
-    <button class="btn primary" data-act="manutTentar">Tentar de novo</button>${token() ? '<button class="btn ghost" data-act="sair">Sair</button>' : ''}</div>`),
-  entrar: () => card(`${EST && EST.estado !== 'ativo' ? `<div class="note warn" style="text-align:left"><b>Portal em manutenção</b><span>${esc(EST.texto)}${EST.prev ? ' Previsão: ' + esc(fmtPrev(EST.prev)) + '.' : ''} Só a equipe da biblioteca consegue entrar agora.</span></div>` : ''}<form class="form" data-form="entrar" style="display:grid;gap:12px">
+  manut: () => card(`<div class="lp-manut">${IC.ferram}<p>${esc(MANUT ? MANUT.message : 'Voltamos em breve.')}</p>${MANUT && MANUT.extra && MANUT.extra.prev ? `<p class="small muted">Previsão de volta: ${esc(fmtPrev(MANUT.extra.prev))}</p>` : ''}
+    <button class="lx-btn grande" data-act="manutTentar">Tentar de novo</button>${token() ? '<button class="lx-link" data-act="sair">Sair</button>' : ''}</div>`, 'Portal em manutenção', ''),
+  entrar: () => card(`${EST && EST.estado !== 'ativo' ? `<div class="note warn" style="text-align:left"><b>Portal em manutenção</b><span>${esc(EST.texto)}${EST.prev ? ' Previsão: ' + esc(fmtPrev(EST.prev)) + '.' : ''} Só a equipe da biblioteca consegue entrar agora.</span></div>` : ''}<form class="lx-form" data-form="entrar">
       ${campo('l-cpf', 'CPF', `inputmode="numeric" autocomplete="username" placeholder="000.000.000-00" value="${esc(fmtCPF(CPF))}" data-cpf`)}
-      ${campo('l-senha', 'Senha', 'type="password" autocomplete="current-password"')}
-      <button class="btn primary lg">Entrar</button></form>
-    <button class="btn ghost" data-act="ir" data-v="codigo">Primeiro acesso ou esqueci a senha</button>`),
-  codigo: () => card(`<form class="form" data-form="codigo" style="display:grid;gap:12px;text-align:left">
-      <p class="small">Vamos enviar um código para o e-mail do seu cadastro. Com ele você cria (ou troca) a sua senha.</p>
+      ${campoSenha('l-senha', 'Senha', 'autocomplete="current-password"')}
+      <button class="lx-btn grande">Entrar ${IC.arrow}</button></form>
+    <button class="lx-link" data-act="ir" data-v="codigo">Primeiro acesso ou esqueci a senha</button>`),
+  codigo: () => card(`<form class="lx-form" data-form="codigo">
       ${campo('c-cpf', 'CPF', `inputmode="numeric" placeholder="000.000.000-00" value="${esc(fmtCPF(CPF))}" data-cpf`)}
-      <button class="btn primary">Enviar código por e-mail</button></form>
-    <button class="btn ghost" data-act="ir" data-v="senha">Já tenho um código</button><button class="btn ghost" data-act="ir" data-v="entrar">Voltar</button>
-    <p class="small muted">Sem e-mail no cadastro? Associados da casa podem informar o e-mail na próxima tela; os demais leitores pedem o código a um operador da biblioteca.</p>`),
-  email: () => card(`<form class="form" data-form="email" style="display:grid;gap:12px;text-align:left">
-      <p class="small">Seu cadastro ainda não tem e-mail. Para confirmar que é você, informe a sua data de nascimento (a mesma do cadastro na Secretaria) e o e-mail que quer usar. Ele fica salvo no seu cadastro da Secretaria e da biblioteca, e o código chega nele.</p>
+      <button class="lx-btn grande">Enviar código por e-mail</button></form>
+    <div class="lx-ent-links"><button class="lx-link" data-act="ir" data-v="senha">Já tenho um código</button><button class="lx-link" data-act="ir" data-v="entrar">${IC.left} Voltar</button></div>
+    <p class="lx-ent-nota">Sem e-mail no cadastro? Associados da casa podem informar o e-mail na próxima tela; os demais leitores pedem o código a um operador da biblioteca.</p>`,
+    'Primeiro acesso', 'Vamos enviar um código para o e-mail do seu cadastro. Com ele você cria (ou troca) a sua senha.'),
+  email: () => card(`<form class="lx-form" data-form="email">
       ${campo('e-nasc', 'Data de nascimento', `type="date" max="${hoje()}"`)}
       ${campo('e-email', 'Seu e-mail', 'type="email" autocomplete="email" maxlength="150"')}
       ${campo('e-email2', 'Repita o e-mail', 'type="email" autocomplete="email" maxlength="150"')}
-      <button class="btn primary">Salvar e-mail e enviar código</button></form>
-    <button class="btn ghost" data-act="ir" data-v="codigo">Voltar</button>`),
-  senha: () => card(`<form class="form" data-form="senha" style="display:grid;gap:12px">
+      <button class="lx-btn grande">Salvar e-mail e enviar código</button></form>
+    <div class="lx-ent-links"><button class="lx-link" data-act="ir" data-v="codigo">${IC.left} Voltar</button></div>`,
+    'Confirme seus dados', 'Seu cadastro ainda não tem e-mail. Informe a sua data de nascimento (a mesma do cadastro na Secretaria) e o e-mail que quer usar. Ele fica salvo no seu cadastro e o código chega nele.'),
+  senha: () => card(`<form class="lx-form" data-form="senha">
       ${campo('s-cpf', 'CPF', `inputmode="numeric" placeholder="000.000.000-00" value="${esc(fmtCPF(CPF))}" data-cpf`)}
       ${campo('s-cod', 'Código de 6 dígitos', 'inputmode="numeric" autocomplete="one-time-code" maxlength="6"')}
-      ${campo('s-senha', 'Nova senha (mínimo 6 caracteres)', 'type="password" autocomplete="new-password" minlength="6" maxlength="64"')}
-      ${campo('s-senha2', 'Repita a senha', 'type="password" autocomplete="new-password" maxlength="64"')}
-      <button class="btn primary">Salvar senha e entrar</button></form>
-    <button class="btn ghost" data-act="ir" data-v="entrar">Voltar</button>`),
+      ${campoSenha('s-senha', 'Nova senha (mínimo 6 caracteres)', 'autocomplete="new-password" minlength="6" maxlength="64"')}
+      ${campoSenha('s-senha2', 'Repita a senha', 'autocomplete="new-password" maxlength="64"')}
+      <button class="lx-btn grande">Salvar senha e entrar</button></form>
+    <div class="lx-ent-links"><button class="lx-link" data-act="ir" data-v="entrar">${IC.left} Voltar</button></div>`,
+    'Criar a sua senha', 'Digite o código que chegou no seu e-mail (confira também a caixa de spam).'),
 };
 
-/* ---------- moldura (barra lateral, topo e navegação do celular) ---------- */
+/* ---------- moldura (versão 2.0): barra de navegação translúcida no topo, barra de abas flutuante no celular e menu da conta ---------- */
 const PAGINAS = () => [['inicio', 'Início', IC.home], ['catalogo', 'Catálogo Físico', IC.book], ['virtual', 'Biblioteca Virtual', IC.pdf, '', !D.leitor.emDia], ['cantigas', 'Cantigas', IC.music]].filter(x => modVer(x[0]));
 const navBtn = ([id, label, icon, soon, tranca]) => `<button class="lp-nav" data-act="pg" data-pg="${id}" ${PG === id ? 'aria-current="page"' : ''}>${icon}<span>${label}</span>${soon ? '<span class="soon">em breve</span>' : ''}${tranca ? `<span class="lp-tranca" title="Exclusivo para associados">${IC.lock}<span class="sr"> (exclusivo para associados)</span></span>` : ''}</button>`;
+const iniciais = n => String(n || '').trim().split(/\s+/).filter(p => p.length > 2 || /^[A-ZÀ-Ú]/.test(p)).slice(0, 2).map(p => p[0].toUpperCase()).join('') || '•';
+function contaMenu() {
+  const l = D.leitor, t = TEMA.get(), fi = fonteIdx();
+  return `<div class="lp-sheet lx-conta" data-act="menuFechar"><div class="lx-conta-box" role="dialog" aria-modal="true" aria-label="Minha conta">
+    <div class="lx-conta-quem"><span class="lx-avatar grande" aria-hidden="true">${esc(iniciais(l.nome))}</span><div><b>${esc(l.nome)}</b><span>${l.associado ? 'Associado(a) da casa' : 'Leitor(a) da biblioteca'}</span></div></div>
+    <div class="lx-conta-lista">${[['perfil', 'Meu perfil', IC.user], ['ajuda', 'Ajuda', IC.help]].map(navBtn).join('')}<button class="lp-nav" data-act="atualizar">${IC.ref}<span>Atualizar os dados</span></button></div>
+    <div class="lx-conta-bloco"><span class="lx-conta-rot">Tamanho da letra</span><div class="lx-seg" role="group" aria-label="Tamanho da letra"><button type="button" data-act="fonte" data-d="-1" aria-label="Diminuir a letra" ${fi === 0 ? 'disabled' : ''}>A−</button><span aria-live="polite">${Math.round(FONTES[fi] * 100)}%</span><button type="button" data-act="fonte" data-d="1" aria-label="Aumentar a letra" ${fi === FONTES.length - 1 ? 'disabled' : ''}>A+</button></div></div>
+    <div class="lx-conta-bloco"><span class="lx-conta-rot">Aparência</span><div class="lx-seg tema" role="group" aria-label="Tema">${Object.keys(TEMA.nomes).map(k => `<button type="button" data-act="tema" data-t="${k}" aria-pressed="${t === k}">${TEMA.nomes[k]}</button>`).join('')}</div></div>
+    <button class="lp-nav lx-sair" data-act="sair">${IC.out}<span>Sair</span></button></div></div>`;
+}
+function rodape() {
+  return `<footer class="lx-rodape"><div class="lx-rodape-in">
+    <div class="lx-rodape-marca"><img src="${LOGO}" alt=""><div><b>Biblioteca Luzes de Aruanda</b><span>Associação Centro de Umbanda Luzes de Aruanda</span></div></div>
+    <div class="lx-rodape-cols"><div><b>Explorar</b>${PAGINAS().map(([id, label]) => `<button class="lx-link" data-act="pg" data-pg="${id}">${label}</button>`).join('')}</div>
+      <div><b>Atendimento</b><a href="https://wa.me/${WHATS}" target="_blank" rel="noopener">WhatsApp (54) 9 9616-4144</a><a href="https://www.instagram.com/luzesdearuanda/" target="_blank" rel="noopener">Instagram @luzesdearuanda</a><button class="lx-link" data-act="pg" data-pg="ajuda">Ajuda</button></div>
+      <div><b>Endereço</b><span>Rua Napoleão Mojen, 48 · Planaltina</span><span>Passo Fundo/RS · CEP 99062-260</span></div></div>
+    <p class="lx-rodape-fim">© ${new Date().getFullYear()} Associação Centro de Umbanda Luzes de Aruanda · <a href="privacidade.html" target="_blank" rel="noopener">Privacidade</a></p></div></footer>`;
+}
 function moldura(conteudo) {
-  const contas = [['perfil', 'Meu Perfil', IC.user], ['ajuda', 'Ajuda', IC.help]];
-  const bottom = [['inicio', 'Início', IC.home], ['catalogo', 'Catálogo', IC.book], ['virtual', 'Biblioteca', IC.pdf], ['cantigas', 'Cantigas', IC.music]].filter(x => modVer(x[0])).concat([['perfil', 'Perfil', IC.user]]);
-  return `<a class="lp-pular" href="#conteudo">Pular para o conteúdo</a><div class="lp-shell">
-    <aside class="lp-side"><div class="lp-brand"><img src="${LOGO}" alt=""><div><b>Luzes de Aruanda</b><span>Biblioteca da associação</span></div></div>
-      <div class="lp-sec">Leitor</div>${PAGINAS().map(navBtn).join('')}<div class="lp-div"></div>${contas.map(navBtn).join('')}
-      <button class="lp-nav" data-act="sair">${IC.out}<span>Sair</span></button>${ART.waves}</aside>
-    <header class="lp-top"><img src="${LOGO}" alt=""><div><b>Luzes de Aruanda</b><span>Biblioteca da associação</span></div><button data-act="menu" aria-label="Menu" aria-expanded="${MENU}">${IC.menu}</button></header>
-    <main class="lp-main${PG === 'virtual' && LV ? ' lv-on' : ''}" id="conteudo" tabindex="-1">${conteudo}</main>
-    <nav class="lp-bottom" aria-label="Navegação">${bottom.map(([id, label, icon]) => `<button data-act="pg" data-pg="${id}" ${PG === id ? 'aria-current="page"' : ''}>${icon}<span>${label}</span></button>`).join('')}</nav>
-    ${MENU ? `<div class="lp-sheet" data-act="menuFechar"><div role="dialog" aria-modal="true" aria-label="Menu">${contas.map(navBtn).join('')}<button class="lp-nav" data-act="sair">${IC.out}<span>Sair</span></button></div></div>` : ''}
+  const tabs = [['inicio', 'Início', IC.home], ['catalogo', 'Catálogo', IC.book], ['virtual', 'Virtual', IC.pdf], ['cantigas', 'Cantigas', IC.music]].filter(x => modVer(x[0])).concat([['perfil', 'Perfil', IC.user]]);
+  const lendo = PG === 'virtual' && LV;
+  return `<a class="lp-pular" href="#conteudo">Pular para o conteúdo</a><div class="lx-shell${lendo ? ' lendo' : ''}">
+    <header class="lx-nav"><div class="lx-nav-in">
+      <button class="lx-marca" data-act="pg" data-pg="inicio" aria-label="Início"><img src="${LOGO}" alt=""><span><b>Luzes de Aruanda</b><small>Biblioteca</small></span></button>
+      <nav class="lx-links" aria-label="Principal">${PAGINAS().map(([id, label, , , tranca]) => `<button data-act="pg" data-pg="${id}" ${PG === id ? 'aria-current="page"' : ''}>${label}${tranca ? `<span class="lx-cad" title="Exclusivo para associados">${IC.lock}<span class="sr"> (exclusivo para associados)</span></span>` : ''}</button>`).join('')}</nav>
+      <div class="lx-acoes">${modVer('catalogo') ? `<button class="lx-ic" data-act="buscar" aria-label="Buscar no catálogo" title="Buscar no catálogo">${IC.search}</button>` : ''}<button class="lx-ic lx-aa" data-act="menu" aria-label="Tamanho da letra e aparência" title="Tamanho da letra e aparência">Aa</button>
+        <button class="lx-avatar" data-act="menu" aria-haspopup="dialog" aria-expanded="${MENU}" aria-label="Minha conta" title="Minha conta">${esc(iniciais(D.leitor.nome))}</button></div>
+    </div></header>
+    <main class="lp-main lx-main${lendo ? ' lv-on' : ''}" id="conteudo" tabindex="-1"><div class="lx-pag">${conteudo}</div>${lendo ? '' : rodape()}</main>
+    <nav class="lx-tabbar" aria-label="Navegação"><div>${tabs.map(([id, label, icon]) => `<button data-act="pg" data-pg="${id}" ${PG === id ? 'aria-current="page"' : ''}>${icon}<span>${label}</span></button>`).join('')}</div></nav>
+    ${MENU ? contaMenu() : ''}
   </div>`;
 }
-const cabecalho = (titulo, sub) => `<div class="lp-head"><div><h1>${titulo}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="lp-head-bts"><div class="lp-acess" role="group" aria-label="Acessibilidade"><button class="lp-btn light" data-act="fonte" data-d="-1" aria-label="Diminuir a letra" ${fonteIdx() === 0 ? 'disabled' : ''}>A−</button><button class="lp-btn light" data-act="fonte" data-d="1" aria-label="Aumentar a letra" ${fonteIdx() === FONTES.length - 1 ? 'disabled' : ''}>A+</button><button class="lp-btn light" data-act="contraste" aria-pressed="${TEMA.get() === 'contraste'}" aria-label="Alto contraste" title="Alto contraste">${IC.contraste}</button></div><button class="lp-btn light" data-act="atualizar" aria-label="Atualizar">${IC.ref}<span>Atualizar</span></button></div></div>`;
+const cabecalho = (titulo, sub) => `<header class="lp-head lx-cab"><h1>${titulo}</h1>${sub ? `<p>${sub}</p>` : ''}</header>`;
 
-/* ---------- páginas ---------- */
-function inicio() {
-  const l = D.leitor, cards = [
-    ['peach', IC.book, 'Catálogo Físico', 'Solicite a retirada de livros do acervo físico da nossa biblioteca.', 'Acessar catálogo', 'catalogo', ART.books, ''],
-    ['green', IC.pdf, 'Biblioteca Virtual', 'Leia nossos livros em PDF, onde e quando quiser.', 'Acessar biblioteca', 'virtual', ART.tablet, 'green'],
-    ['lav', IC.music, 'Cantigas', 'Assista, ouça e leia as cantigas da Umbanda.', 'Acessar cantigas', 'cantigas', ART.drum, 'purple'],
-  ].filter(x => modVer(x[5]));
-  const livros = D.obras.slice().sort((a, b) => String(b.desde).localeCompare(String(a.desde))).slice(0, 8).map(o => ({ tipo: 'Livro', t: o.titulo, img: o.capa ? o.capa : o.isbn ? `https://covers.openlibrary.org/b/isbn/${o.isbn.replace(/\D/g, '')}-M.jpg?default=false` : '', go: 'Ver no catálogo', act: `data-act="verObra" data-id="${o.id}"` }));
-  const cants = (D.novasCantigas || []).map(c => ({ tipo: 'Cantiga', t: c.titulo, go: c.video || c.audio ? 'Assistir / Ouvir' : 'Ler', act: `data-act="verCantiga" data-id="${c.id}"` }));
-  const digs = (D.digNovos || []).map(d => ({ tipo: 'Digital', t: d.titulo, img: d.capa, go: 'Ler agora', act: `data-act="dVer" data-id="${d.id}"` })); // versão 1.10.1
-  const dest = []; for (let i = 0; i < Math.max(livros.length, cants.length, digs.length); i++) { if (digs[i]) dest.push(digs[i]); if (livros[i]) dest.push(livros[i]); if (cants[i]) dest.push(cants[i]); }
-  return `${cabecalho(`Olá, ${esc(l.primeiroNome)}!`, 'Seja bem-vindo ao nosso espaço de leitura e cultura.')}
-    ${D.bloqueios.length ? `<div class="note warn"><b>No momento você não pode retirar livros</b><span>${D.bloqueios.map(esc).join(' ')}</span></div>` : ''}
-    <section class="lp-hero"><div><h2>Conhecimento também é caminho de luz.</h2><p>Explore nosso acervo de livros, cantigas e muito mais, conectando-se com a nossa cultura.</p><button class="lp-btn dark" data-act="pg" data-pg="catalogo">Começar agora ${IC.arrow}</button></div></section>
-    <h2 class="lp-h2">Acesso Rápido</h2>
-    <div class="lp-quick">${cards.map(([cls, icon, t, d, b, pg, art, btn]) => { const soon = pg === 'virtual' && !D.digitaisTotal, tr = pg === 'virtual' && !l.emDia && !soon; return `<div class="lp-card ${cls}" ${soon ? '' : `data-act="pg" data-pg="${pg}"`}>${soon ? '<span class="soon">Em breve</span>' : tr ? `<span class="soon lock">${IC.lock} Exclusivo para associados</span>` : ''}<div class="art">${art}</div><div class="ico">${icon}</div><div><h3>${t}</h3><p>${d}</p></div>
-      <button class="lp-btn ${btn}" ${soon ? 'disabled' : `data-act="pg" data-pg="${pg}"`}>${b} ${IC.arrow}</button>${soon ? '' : IC.right.replace('<svg', '<svg class="chev"')}</div>`; }).join('')}</div>
-    ${dest.length ? `<h2 class="lp-h2 has-more">Destaques <button class="more" data-act="pg" data-pg="catalogo">Ver todos →</button></h2>
-      <div class="lp-dest-wrap"><button class="lp-arrow l" data-act="rolar" data-d="-1" aria-label="Anterior">${IC.left}</button><div class="lp-dest" id="dest">${dest.map(x => `<button class="lp-item" ${x.act}><span class="th">${x.img ? `<img src="${x.img}" alt="" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(ART.bookThumb))">` : x.tipo === 'Cantiga' ? ART.notes : ART.bookThumb}</span>
-        <span class="tx"><span class="lp-tag ${x.tipo === 'Cantiga' ? 'c' : x.tipo === 'Digital' ? 'd' : ''}">${x.tipo === 'Digital' ? 'Livro digital' : x.tipo}</span><b>${esc(x.t)}</b><span class="go">${x.go} →</span></span></button>`).join('')}</div><button class="lp-arrow r" data-act="rolar" data-d="1" aria-label="Próximo">${IC.right}</button></div>` : ''}`;
+/* ---------- capas (versão 2.0): capa tipográfica quando o livro não tem foto da capa ---------- */
+const CAPA_COR = { UMB: ['#1d3a63', '#e9d9b0'], AFR: ['#8a3f22', '#f6e3c4'], ESP: ['#2f3f7a', '#e4e7f7'], ESO: ['#4d2d63', '#eadcf2'], FIL: ['#33434f', '#e3e8eb'], HIS: ['#6b4b26', '#f2e5cc'], BIO: ['#245a5a', '#dcefed'], LBR: ['#5a2a2a', '#f3dede'], LES: ['#2d5266', '#dfecf3'], POE: ['#7a2f4a', '#f6dfe8'], INF: ['#a4661c', '#fff1d6'], AUT: ['#3c5a2a', '#e4f0da'], ERV: ['#2f5d38', '#e2f0df'] };
+function capaCor(g, t) { if (CAPA_COR[g]) return CAPA_COR[g]; const v = Object.values(CAPA_COR); let h = 0; for (const c of String(g || t || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0; return v[h % v.length]; }
+const capaTxt = (t, a, g) => { const [bg, ink] = capaCor(g, t); return `<span class="lx-capa-txt" style="--cb:${bg};--ci:${ink}"><span class="lx-ct-g">${esc(g ? genNome(g) : 'Biblioteca')}</span><b>${esc(t)}</b><span class="lx-ct-orn" aria-hidden="true"></span><i>${esc(a || '')}</i></span>`; };
+function capaFalha(img) { img.replaceWith(document.createRange().createContextualFragment(capaTxt(img.dataset.t, img.dataset.a, img.dataset.g))); }
+
+/* ---------- início (versão 2.0): vitrine editorial ---------- */
+const recentes = (l, k) => l.slice().sort((a, b) => String(b[k] || '').localeCompare(String(a[k] || '')));
+function leque(lista) {
+  const it = lista.slice(0, 5); if (!it.length) return '';
+  return `<div class="lx-leque n${it.length}">${it.map((x, i) => `<span class="lx-leque-it i${i}">${x.img ? `<img src="${esc(x.img)}" alt="" data-t="${esc(x.t)}" data-a="${esc(x.a)}" data-g="${esc(x.g)}" onerror="capaFalha(this)">` : capaTxt(x.t, x.a, x.g)}</span>`).join('')}</div>`;
 }
+const capaUrl = o => o.capa ? o.capa : isbnLimpo(o.isbn).length >= 10 ? `https://covers.openlibrary.org/b/isbn/${isbnLimpo(o.isbn)}-M.jpg?default=false` : '';
+const dispCurto = o => o.disp ? (o.disp === 1 ? '1 disponível' : `${o.disp} disponíveis`) : 'Emprestado';
+function prateleira(id, titulo, itens, mais) {
+  if (!itens.length) return '';
+  return `<section class="lx-sec"><header class="lx-sec-cab"><h2>${titulo}</h2>${mais || ''}</header>
+    <div class="lx-prat-wrap"><button class="lx-seta e" data-act="rolar" data-alvo="${id}" data-d="-1" aria-label="Voltar a lista">${IC.left}</button>
+      <div class="lx-prat" id="${id}" role="list">${itens.join('')}</div>
+      <button class="lx-seta d" data-act="rolar" data-alvo="${id}" data-d="1" aria-label="Avançar a lista">${IC.right}</button></div></section>`;
+}
+const itemPrat = (act, id, img, t, a, g, tag, linha, extra) => `<div class="lx-pi" role="listitem"><button class="lx-pi-bt" ${act} data-id="${id}">
+  <span class="lx-pi-capa">${img ? `<img src="${esc(img)}" alt="" loading="lazy" data-t="${esc(t)}" data-a="${esc(a)}" data-g="${esc(g)}" onerror="capaFalha(this)">` : capaTxt(t, a, g)}${tag ? `<span class="lx-selo">${tag}</span>` : ''}</span>
+  <span class="lx-pi-tx"><b>${esc(t)}</b><span>${esc(a || 'Autor não informado')}</span>${linha || ''}</span></button>${extra || ''}</div>`;
+function inicio() {
+  const l = D.leitor, novos = recentes(D.obras, 'desde').slice(0, 14), digs = l.emDia && modOk('virtual') ? (D.digNovos || []) : [];
+  const capas = digs.filter(d => d.capa).map(d => ({ img: d.capa, t: d.titulo, a: d.autor, g: d.genero })).concat(novos.map(o => ({ img: capaUrl(o), t: o.titulo, a: o.autor, g: o.genero })));
+  const comigo = D.emprestimos.filter(x => !x.dataDev).sort((a, b) => String(a.dataPrev).localeCompare(String(b.dataPrev))), pedidos = D.solicitacoes.filter(s => s.status === 'pendente'), h = hoje();
+  const gens = {}; D.obras.forEach(o => { const g = o.genero || '_'; gens[g] = (gens[g] || 0) + 1; });
+  const temas = Object.keys(gens).filter(g => g !== '_').sort((a, b) => gens[b] - gens[a] || genNome(a).localeCompare(genNome(b), 'pt-BR'));
+  const dispN = D.obras.filter(o => o.disp).length, nDig = D.digitaisTotal || 0;
+  const status = [];
+  if (comigo.length) { const p = comigo[0], atr = p.dataPrev < h; status.push(`<button class="lx-st ${atr ? 'ruim' : ''}" data-act="pg" data-pg="perfil"><span class="lx-st-ic">${IC.book}</span><span><b>${comigo.length === 1 ? '1 livro com você' : comigo.length + ' livros com você'}</b><span>${p.pendente ? 'Falta assinar o protocolo' : `${atr ? 'Atrasado desde' : 'Devolver até'} ${fmtD(p.dataPrev)}`}</span></span>${IC.right}</button>`); }
+  if (pedidos.length) status.push(`<button class="lx-st" data-act="pg" data-pg="perfil"><span class="lx-st-ic">${IC.relogio || IC.flag}</span><span><b>${pedidos.length === 1 ? '1 pedido aguardando' : pedidos.length + ' pedidos aguardando'}</b><span>Separado até ${fmtD(pedidos[0].expiraEm)}</span></span>${IC.right}</button>`);
+  const caminho = (pg, cls, eyebrow, tit, txt, cta, art) => { const soon = pg === 'virtual' && !nDig, tr = pg === 'virtual' && !l.emDia && !soon;
+    return `<article class="lx-cam ${cls}${soon ? ' breve' : ''}"><div class="lx-cam-tx"><p class="lx-eyebrow">${eyebrow}</p><h3>${tit}</h3><p>${txt}</p>
+      ${soon ? '<span class="lx-pill">Em breve</span>' : tr ? `<button class="lx-cam-cta" data-act="pg" data-pg="virtual">${IC.lock} Exclusivo para associados</button>` : `<button class="lx-cam-cta" data-act="pg" data-pg="${pg}">${cta} ${IC.right}</button>`}</div><div class="lx-cam-arte" aria-hidden="true">${art}</div></article>`; };
+  const cams = [
+    modVer('catalogo') && caminho('catalogo', 'fisico', 'Catálogo físico', 'Retire na biblioteca.', `${D.obras.length} ${D.obras.length === 1 ? 'livro' : 'livros'} no acervo · ${dispN} ${dispN === 1 ? 'disponível' : 'disponíveis'} agora.`, 'Explorar o catálogo', ART.books),
+    modVer('virtual') && caminho('virtual', 'virtual', 'Biblioteca Virtual', 'Leia onde estiver.', nDig ? `${nDig} ${nDig === 1 ? 'livro digital' : 'livros digitais'} para ler na tela, com marcador de onde parou.` : 'Livros digitais para ler na tela.', 'Abrir a biblioteca', ART.tablet),
+    modVer('cantigas') && caminho('cantigas', 'cantigas', 'Cantigas', 'Ouça, assista e cante.', 'Pontos com letra, áudio e vídeo, organizados por linha e toque.', 'Ver as cantigas', ART.drum),
+  ].filter(Boolean);
+  const pend = pendentes();
+  const novosItens = novos.map(o => itemPrat('data-act="verObra"', o.id, capaUrl(o), o.titulo, o.autor, o.genero, o.digital ? 'Também digital' : '', `<span class="lx-disp ${o.disp ? 'ok' : ''}"><i></i>${pend.has(o.id) ? 'Pedido feito' : dispCurto(o)}</span>`));
+  const digItens = digs.map(d => itemPrat('data-act="dVer"', d.id, d.capa, d.titulo, d.autor, d.genero, 'Digital', '<span class="lx-disp ok"><i></i>Ler agora</span>'));
+  const cants = modOk('cantigas') ? (D.novasCantigas || []) : [];
+  return `<section class="lx-hero">
+      <div class="lx-hero-tx"><p class="lx-eyebrow">Olá, ${esc(l.primeiroNome)}</p>
+        <h1>Conhecimento também é <em>caminho de luz.</em></h1>
+        <p class="lx-lead">Livros, leituras digitais e cantigas da nossa casa, reunidos para você explorar no seu tempo.</p>
+        ${modVer('catalogo') ? `<form class="lx-busca" data-form="buscaGeral" role="search"><label for="bg-q" class="sr">Buscar no catálogo</label>${IC.search}<input id="bg-q" type="search" placeholder="Buscar por título, autor ou editora" autocomplete="off"><button class="lx-btn">Buscar</button></form>
+        ${temas.length ? `<div class="lx-sug"><span>Sugestões:</span>${temas.slice(0, 4).map(g => `<button data-act="irGen" data-id="${esc(g)}">${esc(genNome(g))}</button>`).join('')}</div>` : ''}` : ''}</div>
+      <div class="lx-hero-arte" aria-hidden="true"><div class="lx-luz"></div>${leque(capas)}</div>
+    </section>
+    ${D.bloqueios.length ? `<div class="note warn lx-aviso"><b>No momento você não pode retirar livros</b><span>${D.bloqueios.map(esc).join(' ')}</span></div>` : ''}
+    ${status.length ? `<section class="lx-status" aria-label="Seus livros e pedidos">${status.join('')}</section>` : ''}
+    <section class="lx-sec"><header class="lx-sec-cab"><h2>Por onde começar.</h2></header><div class="lx-caminhos n${cams.length}">${cams.join('')}</div></section>
+    ${modVer('catalogo') ? prateleira('dest', 'Chegaram ao acervo.', novosItens, `<button class="lx-mais" data-act="pg" data-pg="catalogo">Ver o catálogo ${IC.right}</button>`) : ''}
+    ${prateleira('dest2', 'Novos na Biblioteca Virtual.', digItens, `<button class="lx-mais" data-act="pg" data-pg="virtual">Ver todos ${IC.right}</button>`)}
+    ${temas.length && modVer('catalogo') ? `<section class="lx-sec"><header class="lx-sec-cab"><h2>Explore por tema.</h2></header>
+      <div class="lx-temas">${temas.map(g => `<button class="lx-tema" data-act="irGen" data-id="${esc(g)}" style="--tc:${capaCor(g)[0]}"><span class="lx-tema-ic">${iconeGen(g)}</span><b>${esc(genNome(g))}</b><span>${gens[g]} ${gens[g] === 1 ? 'livro' : 'livros'}</span></button>`).join('')}</div></section>` : ''}
+    ${cants.length ? `<section class="lx-sec"><header class="lx-sec-cab"><h2>Cantigas novas.</h2><button class="lx-mais" data-act="pg" data-pg="cantigas">Ver todas ${IC.right}</button></header>
+      <div class="lx-cants">${cants.map(c => `<button class="lx-cant" data-act="verCantiga" data-id="${c.id}"><span class="lx-cant-ic">${c.video || c.audio ? IC.play : IC.letra}</span><span><b>${esc(c.titulo)}</b><span>${c.video && c.audio ? 'Vídeo e áudio' : c.video ? 'Vídeo' : c.audio ? 'Áudio' : 'Letra'}</span></span></button>`).join('')}</div></section>` : ''}
+    <section class="lx-sec lx-sobre"><div class="lx-sobre-tx"><p class="lx-eyebrow">Como funciona</p><h2>Do pedido à leitura, em três passos.</h2>
+        <p>A biblioteca da Associação Centro de Umbanda Luzes de Aruanda reúne livros sobre Umbanda, cultura afro-brasileira, espiritualidade e temas afins. Pelo portal você escolhe, pede e acompanha tudo.</p></div>
+      <ol class="lx-passos"><li><span class="lx-passo-n">1</span><b>Escolha o livro</b><span>Encontre a obra no catálogo e toque em “Pedir retirada”.</span></li>
+        <li><span class="lx-passo-n">2</span><b>Separamos para você</b><span>O livro fica reservado por ${D.config.diasSolicitacao} ${D.config.diasSolicitacao === 1 ? 'dia' : 'dias'}. A biblioteca confirma o pedido.</span></li>
+        <li><span class="lx-passo-n">3</span><b>Retire e assine</b><span>Assine o protocolo (pode ser pelo gov.br). Você fica com o livro por ${D.config.prazo} dias.</span></li></ol></section>`;
+}
+
 /* ---------- gêneros (versão 1.9): ícone automático pelo nome do gênero, no mesmo painel das cantigas ---------- */
 Object.assign(IC, {
   info: sv('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>', 2),
@@ -190,86 +272,98 @@ const selOrd = (k, v) => `<select data-ch="${k}" aria-label="Ordenar"><option va
 const contTxt = (n, g) => `<p class="small muted ct-cont">${n} ${n === 1 ? 'livro encontrado' : 'livros encontrados'}${g ? ` em “${esc(genNome(g))}”` : ''}</p>`;
 const tituloCard = (t, act, id) => `<h3 class="ct-t"><button type="button" class="ct-tlink" data-act="${act}" data-id="${id}">${esc(t)}</button></h3>`;
 
-/* ---------- catálogo físico (versão 1.9): painel de gêneros + filtros + cards com capa + tela do livro ---------- */
+/* ---------- catálogo físico (versão 2.0): busca em destaque, temas em chips (gaveta no celular), grade de capas e tela do livro ---------- */
 const isbnLimpo = s => String(s || '').replace(/[^0-9Xx]/g, '');
-const capaObra = (o, grande) => o.capa ? `<img src="${esc(o.capa)}" alt="${grande ? 'Capa de ' + esc(o.titulo) : ''}" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(ART.bookThumb))">` : isbnLimpo(o.isbn).length >= 10 ? `<img src="https://covers.openlibrary.org/b/isbn/${isbnLimpo(o.isbn)}-${grande ? 'L' : 'M'}.jpg?default=false" alt="${grande ? 'Capa de ' + esc(o.titulo) : ''}" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(ART.bookThumb))">` : ART.bookThumb;
+const capaObra = (o, grande) => { const u = capaUrl(o).replace(/-M\.jpg/, grande ? '-L.jpg' : '-M.jpg'); return u ? `<img src="${esc(u)}" alt="${grande ? 'Capa de ' + esc(o.titulo) : ''}" loading="lazy" data-t="${esc(o.titulo)}" data-a="${esc(o.autor)}" data-g="${esc(o.genero)}" onerror="capaFalha(this)">` : capaTxt(o.titulo, o.autor, o.genero); };
 const pendentes = () => new Set(D.solicitacoes.filter(s => s.status === 'pendente').map(s => s.obraId));
 const dispTxt = o => o.disp ? `Disponíveis: ${o.disp} de ${o.total}` : o.total === 1 ? 'Emprestado no momento' : 'Todos emprestados no momento';
-const pedirBt = (o, pend) => !modOk('pedidos') ? '' : pend.has(o.id) ? '<span class="pill warn">pedido feito</span>' : o.disp && !D.bloqueios.length ? `<button class="lp-btn ct-b" data-act="pedir" data-id="${o.id}">${IC.book}<span>Pedir retirada</span></button>` : '';
+const pedirBt = (o, pend, grande) => !modOk('pedidos') ? '' : pend.has(o.id) ? '<span class="lx-pill aviso">Pedido feito</span>' : o.disp && !D.bloqueios.length ? `<button class="lx-btn${grande ? ' grande' : ' mini'}" data-act="pedir" data-id="${o.id}" aria-label="Pedir retirada de ${esc(o.titulo)}">${grande ? IC.book : ''}<span>Pedir retirada</span></button>` : '';
 const obrasFiltradas = () => { const q = norm(F.q); return ordenar(D.obras.filter(o => naGen(o, F.g) && (F.disp !== 'sim' || o.disp) && (!q || norm(`${o.titulo} ${o.autor} ${o.editora}`).includes(q))), F.ord, o => o.desde); };
+function chipsGen(lista, sel, act, tudo) {
+  const n = {}; lista.forEach(x => { const g = x.genero || '_'; n[g] = (n[g] || 0) + 1; });
+  const gens = Object.keys(n).sort((a, b) => (a === '_') - (b === '_') || genNome(a).localeCompare(genNome(b), 'pt-BR'));
+  const chip = (g, nome, q) => `<button type="button" class="lx-chip" data-act="${act}" data-id="${g}" aria-pressed="${sel === g}">${esc(nome)}<span>${q}</span></button>`;
+  return `<div class="lx-chips" role="group" aria-label="Temas">${chip('', tudo, lista.length)}${gens.map(g => chip(g, genNome(g), n[g])).join('')}</div>`;
+}
 function listaObras() {
   const l = obrasFiltradas(), pend = pendentes(), cont = contTxt(l.length, F.g);
-  if (!l.length) return cont + '<div class="lp-panel"><p class="muted" style="margin:0">Nenhum livro encontrado. Tente outro gênero ou limpe a busca.</p></div>';
-  return cont + l.slice(0, 300).map(o => { const ed = [o.editora, o.ano].filter(Boolean).join(' · '); return `<div class="cant-card livro" id="obra-${o.id}" data-act="oVer" data-id="${o.id}">
-    <span class="ct-th livro">${capaObra(o)}</span>
-    <span class="ct-tx">${tituloCard(o.titulo, 'oVer', o.id)}<i>${esc(o.autor || 'Autor não informado')}</i><span class="ct-meta">${ed ? `<span>${esc(ed)}</span>` : ''}${o.genero ? `<span>${esc(genNome(o.genero))}</span>` : ''}${o.digital ? '<span class="lp-tag">Também digital</span>' : ''}</span>
-      <span class="bk-disp${o.disp ? ' ok' : ''}">${dispTxt(o)}</span></span>
-    <span class="ct-bts">${pedirBt(o, pend)}<button class="lp-btn light ct-b" data-act="oVer" data-id="${o.id}" aria-label="Detalhes de ${esc(o.titulo)}">${IC.info}<span>Detalhes</span></button></span></div>`; }).join('');
+  if (!l.length) return cont + `<div class="lx-vazio">${IC.search}<b>Nenhum livro encontrado</b><span>Tente outra palavra, outro tema ou mostre também os emprestados.</span>${F.q || F.g || F.disp ? '<button class="lx-link" data-act="oLimpar">Limpar a busca e os filtros</button>' : ''}</div>`;
+  return cont + `<div class="lx-grade">${l.slice(0, 300).map(o => `<article class="lx-livro" id="obra-${o.id}">
+    <button class="lx-livro-capa" data-act="oVer" data-id="${o.id}" tabindex="-1" aria-hidden="true">${capaObra(o)}${o.digital ? '<span class="lx-selo">Também digital</span>' : ''}</button>
+    <div class="lx-livro-tx">${tituloCard(o.titulo, 'oVer', o.id)}<p class="lx-autor">${esc(o.autor || 'Autor não informado')}</p>
+      <p class="lx-disp ${o.disp ? 'ok' : ''}"><i></i>${pend.has(o.id) ? 'Pedido feito' : dispCurto(o)}</p></div>
+    ${pend.has(o.id) ? '' : pedirBt(o, pend)}</article>`).join('')}</div>`;
 }
-const avisoBloqueio = () => D.bloqueios.length ? `<div class="note warn"><b>No momento você não pode retirar livros</b><span>${D.bloqueios.map(esc).join(' ')}</span></div>` : '';
+const avisoBloqueio = () => D.bloqueios.length ? `<div class="note warn lx-aviso"><b>No momento você não pode retirar livros</b><span>${D.bloqueios.map(esc).join(' ')}</span></div>` : '';
 function catalogo() {
   if (!modOk('catalogo')) return manutPagina('catalogo', 'Catálogo Físico');
   if (F.id) { const o = D.obras.find(x => x.id === F.id); if (o) return obraTela(o); F.id = ''; }
-  return `${cabecalho('Catálogo Físico', 'Busque no acervo e peça a retirada. A biblioteca confirma e você recebe o protocolo para assinar.')}
-    ${avisoAdm('catalogo')}${gavBt('gen', F.g ? genNome(F.g) : 'Todos os livros', () => painelGen(D.obras, F.g, 'oGen', 'Todos os livros'))}<div class="ct-grade">${painelGen(D.obras, F.g, 'oGen', 'Todos os livros')}
-    <div class="ct-conteudo"><div class="ct-filtros"><span class="ct-ftit">${IC.filtro}<b>Filtros:</b></span>
-        <select data-ch="odisp" aria-label="Disponibilidade"><option value="">Disponibilidade (todos)</option><option value="sim" ${F.disp === 'sim' ? 'selected' : ''}>Só os disponíveis</option></select>${selOrd('oord', F.ord)}</div>
-      <label class="search ct-busca"><span class="sr">Buscar no catálogo</span>${IC.search}<input id="q" data-in="q" type="search" value="${esc(F.q)}" placeholder="Buscar por título, autor ou editora" autocomplete="off"></label>
-      ${avisoBloqueio()}<div id="lista" class="cant-lista">${listaObras()}</div></div></div>`;
+  return `${cabecalho('Catálogo físico', 'Encontre um livro e peça a retirada. A biblioteca separa para você e confirma o pedido.')}
+    ${avisoAdm('catalogo')}<div class="lx-filtros">
+      <label class="lx-campo-busca"><span class="sr">Buscar no catálogo</span>${IC.search}<input id="q" data-in="q" type="search" value="${esc(F.q)}" placeholder="Buscar por título, autor ou editora" autocomplete="off"></label>
+      <div class="lx-filtros-linha">${gavBt('gen', F.g ? genNome(F.g) : 'Todos', () => painelGen(D.obras, F.g, 'oGen', 'Todos os livros'))}
+        <label class="lx-toggle"><input type="checkbox" data-ch="odispck" ${F.disp === 'sim' ? 'checked' : ''}><span class="lx-toggle-sw" aria-hidden="true"></span><span class="lx-tg-txt">Só disponíveis</span><span class="lx-tg-curto" aria-hidden="true">Disponíveis</span></label>
+        <label class="lx-ord"><span class="sr">Ordenar</span>${selOrd('oord', F.ord)}</label></div>
+      ${chipsGen(D.obras, F.g, 'oGen', 'Todos')}</div>
+    ${avisoBloqueio()}<div id="lista">${listaObras()}</div>`;
 }
 function obraTela(o) {
   const dados = [['Editora', o.editora], ['Ano', o.ano], ['Edição', o.edicao], ['Gênero', o.genero && genNome(o.genero)], ['Idioma', o.idioma], ['ISBN', o.isbn], ['No acervo desde', fmtD(o.desde)]].filter(x => x[1]);
-  return `<div class="ct-topo"><button class="btn sm ghost" data-act="oVoltar">← Voltar ao catálogo</button></div>
-    <article class="bk-det"><div class="bk-capa">${capaObra(o, true)}</div>
-      <div class="bk-info"><h1 id="tela-tit" tabindex="-1">${esc(o.titulo)}</h1><p class="bk-autor">${esc(o.autor || 'Autor não informado')}</p>
-        <p class="bk-disp grande${o.disp ? ' ok' : ''}">${dispTxt(o)}</p>
-        <div class="ct-bts ct-bts-det">${pedirBt(o, pendentes())}</div>${avisoBloqueio()}
-        <dl class="ct-info">${dados.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}<dt>Exemplares</dt><dd>${o.total} no acervo · ${o.disp} ${o.disp === 1 ? 'disponível' : 'disponíveis'}</dd></dl>
-        <p class="small muted">Depois do pedido, o livro fica separado para você por ${D.config.diasSolicitacao} ${D.config.diasSolicitacao === 1 ? 'dia' : 'dias'}. Prazo de devolução: ${D.config.prazo} dias após a retirada.</p>
-        ${o.digital ? `<div class="lp-panel bk-tambem">${IC.pdf}<div><b>Também na Biblioteca Virtual</b><span class="small muted">Você pode ler este livro agora mesmo, na tela.</span></div><button class="lp-btn ct-b" data-act="dVer" data-id="${o.digital}">${IC.pdf}<span>Ver na Biblioteca Virtual</span></button></div>` : ''}</div></article>`;
+  const pend = pendentes(), mesmos = D.obras.filter(x => x.id !== o.id && x.genero && x.genero === o.genero).slice(0, 12);
+  const u = capaUrl(o);
+  return `<div class="lx-voltar ct-topo"><button class="lx-link" data-act="oVoltar">${IC.left} Catálogo físico</button></div>
+    <article class="lx-det"><div class="lx-det-capa">${u ? `<div class="lx-det-fundo" style="background-image:url('${esc(u).replace(/'/g, '%27')}')"></div>` : ''}<div class="lx-det-livro">${capaObra(o, true)}</div></div>
+      <div class="lx-det-info">${o.genero ? `<p class="lx-eyebrow">${esc(genNome(o.genero))}</p>` : ''}<h1 id="tela-tit" tabindex="-1">${esc(o.titulo)}</h1><p class="lx-det-autor">${esc(o.autor || 'Autor não informado')}</p>
+        <div class="lx-det-acao"><p class="lx-disp grande ${o.disp ? 'ok' : ''}"><i></i>${pend.has(o.id) ? 'Você já pediu este livro' : dispTxt(o)}</p>${pedirBt(o, pend, true)}</div>${avisoBloqueio()}
+        <dl class="lx-ficha">${dados.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}<div><dt>Exemplares</dt><dd>${o.total} no acervo · ${o.disp} ${o.disp === 1 ? 'disponível' : 'disponíveis'}</dd></div></dl>
+        <p class="lx-nota">Depois do pedido, o livro fica separado para você por ${D.config.diasSolicitacao} ${D.config.diasSolicitacao === 1 ? 'dia' : 'dias'}. Prazo de devolução: ${D.config.prazo} dias após a retirada.</p>
+        ${o.digital ? `<div class="lx-tambem">${IC.pdf}<div><b>Também na Biblioteca Virtual</b><span>Você pode ler este livro agora mesmo, na tela.</span></div><button class="lx-btn claro" data-act="dVer" data-id="${o.digital}">Ler agora</button></div>` : ''}</div></article>
+    ${prateleira('dest', `Mais de ${esc(genNome(o.genero))}.`, mesmos.map(x => itemPrat('data-act="oVer"', x.id, capaUrl(x), x.titulo, x.autor, x.genero, '', `<span class="lx-disp ${x.disp ? 'ok' : ''}"><i></i>${pend.has(x.id) ? 'Pedido feito' : dispCurto(x)}</span>`)))}`;
 }
 
-/* ---------- biblioteca virtual (1.7; layout 1.9): PDF lido só na tela, com o nome do leitor em marca d'água ---------- */
+/* ---------- biblioteca virtual (1.7; visual 2.0): PDF lido só na tela, com o nome do leitor em marca d'água ---------- */
 let DG = null, LV = null; const FD = { q: '', g: '', ord: '', comecei: false, id: '' };
 const AUTZ_TXT = { 'Domínio público': 'Obra em domínio público.', 'Publicação própria da casa': 'Publicação da própria casa.', 'Autorizado pelo autor ou editora': 'Publicado com autorização do autor ou da editora.' };
 const posDe = id => (DG && DG.pos && DG.pos[id]) || null;
 const lerRot = d => { const p = posDe(d.id); return p && p.pag > 1 ? `Continuar da pág. ${p.pag}` : 'Ler'; };
-const capaDig = (d, grande) => d.capa ? `<img src="${esc(d.capa)}" alt="${grande ? 'Capa de ' + esc(d.titulo) : ''}">` : ART.bookThumb;
-const progresso = d => { const p = posDe(d.id); if (!p || !p.total) return ''; const pc = Math.min(100, Math.round(p.pag / p.total * 100)); return `<span class="bk-prog" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Lido: ${pc}%"><span style="width:${pc}%"></span></span>`; };
+const capaDig = (d, grande) => d.capa ? `<img src="${esc(d.capa)}" alt="${grande ? 'Capa de ' + esc(d.titulo) : ''}" data-t="${esc(d.titulo)}" data-a="${esc(d.autor)}" data-g="${esc(d.genero)}" onerror="capaFalha(this)">` : capaTxt(d.titulo, d.autor, d.genero);
+const progresso = d => { const p = posDe(d.id); if (!p || !p.total) return ''; const pc = Math.min(100, Math.round(p.pag / p.total * 100)); return `<span class="bk-prog lx-prog" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Lido: ${pc}%"><span style="width:${pc}%"></span></span>`; };
 const digFiltrados = () => { const q = norm(FD.q); return ordenar(DG.digitais.filter(d => naGen(d, FD.g) && (!FD.comecei || posDe(d.id)) && (!q || norm(`${d.titulo} ${d.autor} ${d.descricao}`).includes(q))), FD.ord, d => d.criadoEm); };
 function listaDigitais() {
-  if (!DG.digitais.length) return '<div class="lp-panel"><p class="muted" style="margin:0">Ainda não há livros digitais. Volte em breve!</p></div>';
+  if (!DG.digitais.length) return `<div class="lx-vazio">${IC.pdf}<b>Ainda não há livros digitais</b><span>Volte em breve!</span></div>`;
   const l = digFiltrados(), cont = contTxt(l.length, FD.g);
-  if (!l.length) return cont + `<div class="lp-panel"><p class="muted" style="margin:0">${FD.comecei ? 'Você ainda não começou nenhum livro com esses filtros.' : 'Nenhum livro encontrado. Tente outro gênero ou limpe a busca.'}</p></div>`;
-  return cont + l.map(d => { const des = String(d.descricao || '').trim(); return `<div class="cant-card livro" id="dig-${d.id}" data-act="dVer" data-id="${d.id}">
-    <span class="ct-th livro">${capaDig(d)}</span>
-    <span class="ct-tx">${tituloCard(d.titulo, 'dVer', d.id)}<i>${esc(d.autor || 'Autor não informado')}</i>${des ? `<span class="bk-desc">${esc(des)}</span>` : ''}<span class="ct-meta">${d.genero ? `<span>${esc(genNome(d.genero))}</span>` : ''}${d.ano ? `<span>${esc(d.ano)}</span>` : ''}${d.soAssociados ? '<span class="lp-tag c">Associados</span>' : ''}</span>${progresso(d)}</span>
-    <span class="ct-bts"><button class="lp-btn ct-b" data-act="lvAbrir" data-id="${d.id}" aria-label="${lerRot(d)}: ${esc(d.titulo)}">${IC.pdf}<span>${lerRot(d)}</span></button><button class="lp-btn light ct-b" data-act="dVer" data-id="${d.id}" aria-label="Detalhes de ${esc(d.titulo)}">${IC.info}<span>Detalhes</span></button></span></div>`; }).join('');
+  if (!l.length) return cont + `<div class="lx-vazio">${IC.search}<b>${FD.comecei ? 'Você ainda não começou nenhum livro com esses filtros' : 'Nenhum livro encontrado'}</b><span>Tente outra palavra ou outro tema.</span></div>`;
+  return cont + `<div class="lx-grade">${l.map(d => { const p = posDe(d.id); return `<article class="lx-livro" id="dig-${d.id}">
+    <button class="lx-livro-capa" data-act="dVer" data-id="${d.id}" tabindex="-1" aria-hidden="true">${capaDig(d)}${p ? `<span class="lx-selo">Pág. ${p.pag}${p.total ? ` de ${p.total}` : ''}</span>` : ''}</button>
+    <div class="lx-livro-tx">${tituloCard(d.titulo, 'dVer', d.id)}<p class="lx-autor">${esc(d.autor || 'Autor não informado')}</p>${progresso(d)}</div>
+    <button class="lx-btn mini" data-act="lvAbrir" data-id="${d.id}" aria-label="${lerRot(d)}: ${esc(d.titulo)}">${p && p.pag > 1 ? 'Continuar' : 'Ler'}</button></article>`; }).join('')}</div>`;
 }
 function continuarCard() {
   const l = DG.digitais.filter(d => posDe(d.id)).sort((a, b) => String(posDe(b.id).em).localeCompare(String(posDe(a.id).em))), d = l[0]; if (!d) return '';
   const p = posDe(d.id);
-  return `<section class="lp-panel bk-cont" aria-label="Continuar de onde parei"><span class="ct-th livro">${capaDig(d)}</span><div class="bk-cont-tx"><span class="small muted">Continuar de onde parei</span><b>${esc(d.titulo)}</b><span class="small">Página ${p.pag}${p.total ? ` de ${p.total}` : ''}</span>${progresso(d)}</div>
-    <button class="lp-btn ct-b" data-act="lvAbrir" data-id="${d.id}">${IC.pdf}<span>Continuar</span></button></section>`;
+  return `<section class="lx-continuar" aria-label="Continuar de onde parei"><span class="lx-continuar-capa">${capaDig(d)}</span>
+    <div class="lx-continuar-tx"><p class="lx-eyebrow">Continuar de onde parei</p><b>${esc(d.titulo)}</b><span>Página ${p.pag}${p.total ? ` de ${p.total}` : ''}${d.autor ? ' · ' + esc(d.autor) : ''}</span>${progresso(d)}</div>
+    <button class="lx-btn" data-act="lvAbrir" data-id="${d.id}">${IC.pdf}<span>Continuar</span></button></section>`;
 }
 function digitalTela(d) {
   const p = posDe(d.id), fis = d.obraId && D.obras.find(o => o.id === d.obraId);
   const dados = [['Gênero', d.genero && genNome(d.genero)], ['Ano', d.ano], ['Autorização', d.autorizacao]].filter(x => x[1]);
-  return `<div class="ct-topo"><button class="btn sm ghost" data-act="dVoltar">← Voltar aos livros</button></div>
-    <article class="bk-det"><div class="bk-capa">${capaDig(d, true)}</div>
-      <div class="bk-info"><h1 id="tela-tit" tabindex="-1">${esc(d.titulo)}</h1><p class="bk-autor">${esc(d.autor || 'Autor não informado')}</p>
-        ${p ? `<p class="small">Você parou na página ${p.pag}${p.total ? ` de ${p.total}` : ''}.</p>${progresso(d)}` : ''}
-        <div class="ct-bts ct-bts-det"><button class="lp-btn ct-b" data-act="lvAbrir" data-id="${d.id}">${IC.pdf}<span>${lerRot(d)}</span></button>${p && p.pag > 1 ? `<button class="lp-btn light ct-b" data-act="lvAbrir" data-id="${d.id}" data-inicio="1">${IC.ref}<span>Começar do início</span></button>` : ''}<button class="lp-btn light ct-b" data-act="lvAbrir" data-id="${d.id}" data-ouvir="1">${IC.fone}<span>Ouvir o livro</span></button></div>
-        ${d.descricao ? `<h2 class="bk-sub">Sobre o livro</h2><p class="bk-texto">${esc(d.descricao).replace(/\n/g, '<br>')}</p>` : ''}
-        <dl class="ct-info">${dados.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${probBt('livro', d.id, d.titulo)}
-        <p class="small muted">${esc(AUTZ_TXT[d.autorizacao] || '')} A leitura é feita só nesta tela e cada página mostra o nome de quem está lendo.</p>
-        ${fis ? `<div class="lp-panel bk-tambem">${IC.book}<div><b>Também no acervo físico</b><span class="small muted">${dispTxt(fis)} para retirada.</span></div><button class="lp-btn light ct-b" data-act="oVer" data-id="${fis.id}">${IC.book}<span>Ver no catálogo</span></button></div>` : ''}</div></article>`;
+  return `<div class="lx-voltar ct-topo"><button class="lx-link" data-act="dVoltar">${IC.left} Biblioteca Virtual</button></div>
+    <article class="lx-det"><div class="lx-det-capa">${d.capa ? `<div class="lx-det-fundo" style="background-image:url('${esc(d.capa).replace(/'/g, '%27')}')"></div>` : ''}<div class="lx-det-livro">${capaDig(d, true)}</div></div>
+      <div class="lx-det-info">${d.genero ? `<p class="lx-eyebrow">${esc(genNome(d.genero))}</p>` : ''}<h1 id="tela-tit" tabindex="-1">${esc(d.titulo)}</h1><p class="lx-det-autor">${esc(d.autor || 'Autor não informado')}</p>
+        <div class="lx-det-acao col">${p ? `<div class="lx-det-prog"><span>Você parou na página ${p.pag}${p.total ? ` de ${p.total}` : ''}</span>${progresso(d)}</div>` : ''}
+          <div class="lx-det-bts"><button class="lx-btn grande" data-act="lvAbrir" data-id="${d.id}">${IC.pdf}<span>${lerRot(d)}</span></button>${p && p.pag > 1 ? `<button class="lx-btn claro" data-act="lvAbrir" data-id="${d.id}" data-inicio="1">${IC.ref}<span>Do início</span></button>` : ''}<button class="lx-btn claro" data-act="lvAbrir" data-id="${d.id}" data-ouvir="1">${IC.fone}<span>Ouvir</span></button></div></div>
+        ${d.descricao ? `<div class="lx-sobre-livro"><h2>Sobre o livro</h2><p>${esc(d.descricao).replace(/\n/g, '<br>')}</p></div>` : ''}
+        <dl class="lx-ficha">${dados.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+        <p class="lx-nota">${esc(AUTZ_TXT[d.autorizacao] || '')} A leitura é feita só nesta tela e cada página mostra o nome de quem está lendo.</p>
+        ${fis ? `<div class="lx-tambem fis">${IC.book}<div><b>Também no acervo físico</b><span>${dispTxt(fis)} para retirada.</span></div><button class="lx-btn claro" data-act="oVer" data-id="${fis.id}">Ver no catálogo</button></div>` : ''}
+        <div>${probBt('livro', d.id, d.titulo)}</div></div></article>`;
 }
 function virtual() {
   if (!modOk('virtual')) return manutPagina('virtual', 'Biblioteca Virtual');
   if (!D.leitor.emDia) return trancaPagina();
   if (!DG) return cabecalho('Biblioteca Virtual') + '<p class="muted">Carregando…</p>';
-  if (LV) { const d = LV.d; return `<div class="lv-topo"><button class="btn sm ghost" data-act="lvFechar">← ${FD.id ? 'Voltar ao livro' : 'Voltar aos livros'}</button><div class="lv-tit"><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || '')}</span></div>${probBt('livro', d.id, d.titulo, true)}</div>
+  if (LV) { const d = LV.d; return `<div class="lv-topo"><button class="lx-link" data-act="lvFechar">${IC.left} ${FD.id ? 'Voltar ao livro' : 'Voltar aos livros'}</button><div class="lv-tit"><b>${esc(d.titulo)}</b><span class="small muted">${esc(d.autor || '')}</span></div>${probBt('livro', d.id, d.titulo, true)}</div>
       ${LV.pdf ? `<div class="lv-barra" role="toolbar" aria-label="Leitura"><button class="lp-btn light" data-act="lvPag" data-d="-1" aria-label="Página anterior">${IC.left}</button><span class="lv-ind"><input id="lv-ir" inputmode="numeric" value="${LV.pag}" aria-label="Página atual (digite para ir)"> de ${LV.total}</span><button class="lp-btn light" data-act="lvPag" data-d="1" aria-label="Próxima página">${IC.right}</button>
         <span class="lv-zoom"><button class="lp-btn light lv-ouvir" data-act="ttsAbrir" aria-pressed="${TTS.on}" aria-label="Ouvir em voz alta">${IC.fone}<span>Ouvir</span></button><button class="lp-btn light lv-modo" data-act="lvModo" title="Trocar o modo de leitura">${LV.modo === 'rolagem' ? IC.pagina + '<span>Página a página</span>' : IC.rolar + '<span>Rolagem contínua</span>'}</button><button class="lp-btn light" data-act="lvZoom" data-d="-1" aria-label="Diminuir o tamanho da página">−</button><button class="lp-btn light" data-act="lvZoom" data-d="1" aria-label="Aumentar o tamanho da página">+</button></span>
         <div id="lv-tts" class="lv-tts-box">${ttsPainel()}</div></div>
@@ -277,12 +371,14 @@ function virtual() {
           : `<div class="lv-folha" id="lv-folha"><canvas id="lv-canvas" role="img" aria-label="Página ${LV.pag} de ${LV.total}"></canvas></div>`}<p class="small muted lv-aviso">Leitura só nesta tela. ${esc(AUTZ_TXT[d.autorizacao] || '')} Cada página mostra o nome de quem está lendo. Para ouvir o texto, use o botão “Ouvir”.</p>`
       : `<div class="lp-panel"><p id="lv-prog" role="status">Abrindo o livro…</p></div>`}`; }
   if (FD.id) { const d = DG.digitais.find(x => x.id === FD.id); if (d) return digitalTela(d); FD.id = ''; }
-  return `${cabecalho('Biblioteca Virtual', 'Leia os livros digitais da biblioteca aqui mesmo, no celular ou no computador.')}
-    ${avisoAdm('virtual')}${continuarCard()}${gavBt('gen', FD.g ? genNome(FD.g) : 'Todos os livros', () => painelGen(DG.digitais, FD.g, 'dGen', 'Todos os livros'))}<div class="ct-grade">${painelGen(DG.digitais, FD.g, 'dGen', 'Todos os livros')}
-    <div class="ct-conteudo"><div class="ct-filtros"><span class="ct-ftit">${IC.filtro}<b>Filtros:</b></span>${selOrd('dord', FD.ord)}
-        <label class="check small ct-casa"><input type="checkbox" data-ch="dcom" ${FD.comecei ? 'checked' : ''}> Só os que comecei</label></div>
-      <label class="search ct-busca"><span class="sr">Buscar na Biblioteca Virtual</span>${IC.search}<input data-in="dq" type="search" value="${esc(FD.q)}" placeholder="Buscar por título, autor ou assunto" autocomplete="off"></label>
-      <div id="dlista" class="cant-lista">${listaDigitais()}</div></div></div>`;
+  return `${cabecalho('Biblioteca Virtual', 'Leia os livros digitais da biblioteca aqui mesmo, no celular ou no computador. O portal lembra onde você parou.')}
+    ${avisoAdm('virtual')}${continuarCard()}<div class="lx-filtros">
+      <label class="lx-campo-busca"><span class="sr">Buscar na Biblioteca Virtual</span>${IC.search}<input data-in="dq" type="search" value="${esc(FD.q)}" placeholder="Buscar por título, autor ou assunto" autocomplete="off"></label>
+      <div class="lx-filtros-linha">${gavBt('gen', FD.g ? genNome(FD.g) : 'Todos', () => painelGen(DG.digitais, FD.g, 'dGen', 'Todos os livros'))}
+        <label class="lx-toggle"><input type="checkbox" data-ch="dcom" ${FD.comecei ? 'checked' : ''}><span class="lx-toggle-sw" aria-hidden="true"></span><span class="lx-tg-txt">Só os que comecei</span><span class="lx-tg-curto" aria-hidden="true">Comecei</span></label>
+        <label class="lx-ord"><span class="sr">Ordenar</span>${selOrd('dord', FD.ord)}</label></div>
+      ${DG.digitais.length ? chipsGen(DG.digitais, FD.g, 'dGen', 'Todos') : ''}</div>
+    <div id="dlista">${listaDigitais()}</div>`;
 }
 
 /* ---------- onde parei (versão 1.9): fica no servidor, para continuar em qualquer aparelho ---------- */
@@ -433,18 +529,26 @@ const irPag = n => { if (!LV || !LV.pdf) return; const p = Math.min(Math.max(1, 
   if (p === LV.pag) return; LV.pag = p; desenharPagina(); const f = $('#lv-folha'); if (f) f.scrollIntoView({ block: 'start', behavior: SUAVE() }); };
 const SOL = { pendente: ['Aguardando a biblioteca', 'warn'], confirmada: ['Confirmado', 'ok'], recusada: ['Não confirmado', 'bad'], expirada: ['Expirou', 'mute'], cancelada: ['Cancelado', 'mute'] };
 function perfil() {
-  const l = D.leitor, at = D.emprestimos.filter(x => !x.dataDev), hist = D.emprestimos.filter(x => x.dataDev), h = hoje();
-  const linha = (a, b) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--lp-line)">${a}<span style="text-align:right">${b}</span></div>`;
-  const emp = x => linha(`<span><b>${esc(x.titulo)}</b><br><span class="small muted">${esc(x.autor)} · ${esc(x.codigo)}</span></span>`, `${x.pendente ? '<span class="pill warn">assinar o protocolo</span>' : x.dataDev ? `<span class="small muted">devolvido em ${fmtD(x.dataDev)}</span>` : `<span class="pill ${x.dataPrev < h ? 'bad' : 'info'}">${x.dataPrev < h ? 'atrasado desde' : 'devolver até'} ${fmtD(x.dataPrev)}</span>`}${x.protocolo === 'renovacao' ? '<br><span class="small muted">renovação aguardando assinatura</span>' : ''}`);
-  return `${cabecalho('Meu Perfil')}
-    <section class="lp-panel"><h2>${esc(l.nome)}</h2><p class="muted" style="margin:0">${l.email ? 'E-mail: ' + esc(l.email) + ' · ' : ''}${l.associado ? 'Associado(a) da casa' : 'Leitor(a) da biblioteca'}</p></section>
-    <section class="lp-panel"><h2>Comigo agora</h2>${at.length ? at.map(emp).join('') : '<p class="muted">Você não está com nenhum livro.</p>'}<p class="small muted">Até ${D.config.maxExemplares} livros ao mesmo tempo, por ${D.config.prazo} dias.${D.config.renovacoes ? ' Para renovar, fale com a biblioteca.' : ''}</p></section>
-    <section class="lp-panel"><h2>Meus pedidos</h2>${D.solicitacoes.length ? D.solicitacoes.map(s => linha(`<span><b>${esc(s.titulo)}</b><br><span class="small muted">pedido em ${fmtD(s.criadaEm)}${s.status === 'pendente' ? ` · separado até ${fmtD(s.expiraEm)}` : ''}${s.motivo ? ' · ' + esc(s.motivo) : ''}</span></span>`, `<span class="pill ${SOL[s.status][1]}">${SOL[s.status][0]}</span>${s.status === 'pendente' ? `<br><button class="btn sm ghost" data-act="cancelar" data-id="${s.id}">Cancelar pedido</button>` : ''}`)).join('') : '<p class="muted">Nenhum pedido ainda.</p>'}</section>
-    ${hist.length ? `<section class="lp-panel"><h2>Histórico</h2>${hist.slice(0, 15).map(emp).join('')}</section>` : ''}
-    <section class="lp-panel"><h2>Aparência</h2><div class="seg" role="group" aria-label="Tema">${Object.keys(TEMA.nomes).map(k => `<button type="button" data-act="tema" data-t="${k}" aria-pressed="${TEMA.get() === k}">${TEMA.nomes[k]}</button>`).join('')}</div><p class="small muted">Automático segue o tema do aparelho. A escolha fica guardada neste aparelho.</p></section>
-    <section class="lp-panel"><h2>Trocar a senha</h2><form data-form="trocar" style="display:grid;gap:10px;max-width:420px">${campo('t-atual', 'Senha atual', 'type="password" autocomplete="current-password"')}${campo('t-nova', 'Nova senha', 'type="password" autocomplete="new-password" minlength="6" maxlength="64"')}${campo('t-nova2', 'Repita a nova senha', 'type="password" autocomplete="new-password" maxlength="64"')}<button class="lp-btn" style="justify-self:start">Salvar nova senha</button></form>
-      <p class="small muted">Trocar a senha encerra o acesso nos outros aparelhos.</p></section>
-    <button class="lp-btn light" data-act="sair">${IC.out} Sair</button>`;
+  const l = D.leitor, at = D.emprestimos.filter(x => !x.dataDev), hist = D.emprestimos.filter(x => x.dataDev), h = hoje(), obra = t => D.obras.find(o => o.titulo === t) || { titulo: t };
+  const mini = x => { const o = obra(x.titulo); return `<span class="lx-mini-capa">${o.id ? capaObra(o) : capaTxt(x.titulo, x.autor, '')}</span>`; };
+  const emp = x => `<div class="lx-linha">${mini(x)}<div class="lx-linha-tx"><b>${esc(x.titulo)}</b><span>${esc(x.autor)} · ${esc(x.codigo)}</span>${x.protocolo === 'renovacao' ? '<span>Renovação aguardando assinatura</span>' : ''}</div>
+    <div class="lx-linha-st">${x.pendente ? '<span class="lx-pill aviso">Assinar o protocolo</span>' : x.dataDev ? `<span class="lx-pill">Devolvido em ${fmtD(x.dataDev)}</span>` : `<span class="lx-pill ${x.dataPrev < h ? 'ruim' : 'info'}">${x.dataPrev < h ? 'Atrasado desde' : 'Devolver até'} ${fmtD(x.dataPrev)}</span>`}</div></div>`;
+  const ped = s => `<div class="lx-linha">${mini(s)}<div class="lx-linha-tx"><b>${esc(s.titulo)}</b><span>Pedido em ${fmtD(s.criadaEm)}${s.status === 'pendente' ? ` · separado até ${fmtD(s.expiraEm)}` : ''}${s.motivo ? ' · ' + esc(s.motivo) : ''}</span></div>
+    <div class="lx-linha-st"><span class="lx-pill ${{ warn: 'aviso', ok: 'bom', bad: 'ruim', mute: '' }[SOL[s.status][1]]}">${SOL[s.status][0]}</span>${s.status === 'pendente' ? `<button class="lx-link" data-act="cancelar" data-id="${s.id}">Cancelar pedido</button>` : ''}</div></div>`;
+  return `<section class="lx-perfil-topo"><span class="lx-avatar enorme" aria-hidden="true">${esc(iniciais(l.nome))}</span><div><h1 class="lx-perfil-nome">${esc(l.nome)}</h1><p>${l.associado ? 'Associado(a) da casa' : 'Leitor(a) da biblioteca'}${l.email ? ' · ' + esc(l.email) : ''}</p></div></section>
+    <div class="lx-perfil-grade">
+    <section class="lx-painel"><header><h2>Comigo agora</h2><span class="lx-cont">${at.length}</span></header>${at.length ? at.map(emp).join('') : '<p class="lx-nada">Você não está com nenhum livro.</p>'}
+      <p class="lx-nota">Até ${D.config.maxExemplares} livros ao mesmo tempo, por ${D.config.prazo} dias.${D.config.renovacoes ? ' Para renovar, fale com a biblioteca.' : ''}</p></section>
+    <section class="lx-painel"><header><h2>Meus pedidos</h2><span class="lx-cont">${D.solicitacoes.filter(s => s.status === 'pendente').length}</span></header>${D.solicitacoes.length ? D.solicitacoes.map(ped).join('') : `<p class="lx-nada">Nenhum pedido ainda. <button class="lx-link" data-act="pg" data-pg="catalogo">Ver o catálogo</button></p>`}</section>
+    ${hist.length ? `<section class="lx-painel"><header><h2>Já li</h2><span class="lx-cont">${hist.length}</span></header>${hist.slice(0, 15).map(emp).join('')}</section>` : ''}
+    <section class="lx-painel"><header><h2>Aparência e leitura</h2></header>
+      <div class="lx-conta-bloco"><span class="lx-conta-rot">Tema</span><div class="lx-seg tema" role="group" aria-label="Tema">${Object.keys(TEMA.nomes).map(k => `<button type="button" data-act="tema" data-t="${k}" aria-pressed="${TEMA.get() === k}">${TEMA.nomes[k]}</button>`).join('')}</div></div>
+      <div class="lx-conta-bloco"><span class="lx-conta-rot">Tamanho da letra</span><div class="lx-seg" role="group" aria-label="Tamanho da letra"><button type="button" data-act="fonte" data-d="-1" aria-label="Diminuir a letra" ${fonteIdx() === 0 ? 'disabled' : ''}>A−</button><span>${Math.round(FONTES[fonteIdx()] * 100)}%</span><button type="button" data-act="fonte" data-d="1" aria-label="Aumentar a letra" ${fonteIdx() === FONTES.length - 1 ? 'disabled' : ''}>A+</button></div></div>
+      <p class="lx-nota">Automático segue o tema do aparelho. As escolhas ficam guardadas neste aparelho.</p></section>
+    <section class="lx-painel"><header><h2>Trocar a senha</h2></header><form class="lx-form" data-form="trocar">${campoSenha('t-atual', 'Senha atual', 'autocomplete="current-password"')}${campoSenha('t-nova', 'Nova senha', 'autocomplete="new-password" minlength="6" maxlength="64"')}${campoSenha('t-nova2', 'Repita a nova senha', 'autocomplete="new-password" maxlength="64"')}<button class="lx-btn" style="justify-self:start">Salvar nova senha</button></form>
+      <p class="lx-nota">Trocar a senha encerra o acesso nos outros aparelhos.</p></section>
+    </div>
+    <div class="lx-perfil-fim"><button class="lx-btn claro" data-act="sair">${IC.out}<span>Sair do portal</span></button></div>`;
 }
 const FAQ = [
   ['Como peço um livro?', 'No Catálogo Físico, toque em "Pedir retirada". O livro fica separado para você por alguns dias. Quando a biblioteca confirmar, você recebe o protocolo de empréstimo para assinar e retira o livro.'],
@@ -454,10 +558,12 @@ const FAQ = [
   ['Posso baixar ou imprimir os livros digitais?', 'Não. Os livros da Biblioteca Virtual são lidos só aqui no portal, e cada página mostra o nome de quem está lendo. O portal lembra a última página que você leu em cada livro.'],
   ['O portal registra o que eu acesso?', 'Sim. Para cuidar do acervo, a biblioteca registra as entradas no portal e os livros, cantigas e páginas abertos, guardados por 12 meses. Só os administradores da biblioteca veem esses registros, que não são compartilhados com ninguém.'],
   ['Quem vê as cantigas?', 'Todos os leitores veem as cantigas. As cantigas da casa e a Biblioteca Virtual são exclusivas dos associados com as mensalidades em dia na Secretaria.'],
+  ['Como aumento a letra ou mudo as cores?', 'Toque no círculo com as suas iniciais, no alto da tela (ou em "Aa", no computador). Lá você escolhe o tamanho da letra e o tema: claro, escuro ou alto contraste.'],
 ];
-const ajuda = () => `${cabecalho('Ajuda', 'Dúvidas mais comuns sobre o portal da biblioteca.')}<section class="lp-panel lp-faq">${FAQ.map(([q, a]) => `<details><summary>${q}</summary><p>${a}</p></details>`).join('')}</section>
-  <section class="lp-panel"><h2>Encontrou um erro?</h2><p class="muted">Conte para a biblioteca o que não funcionou: uma página que não abre, um botão, um livro ou uma cantiga com problema.</p>${probBt('portal', '', 'Portal')}</section>
-  <section class="lp-panel"><h2>Ainda com dúvida?</h2><p class="muted">Fale com a biblioteca pelo WhatsApp.</p><a class="lp-btn green" href="https://wa.me/${WHATS}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre o portal da Biblioteca Luzes de Aruanda.')}" target="_blank" rel="noopener">Conversar no WhatsApp ${IC.arrow}</a></section>`;
+const ajuda = () => `${cabecalho('Ajuda', 'Dúvidas mais comuns sobre o portal da biblioteca.')}
+  <div class="lx-ajuda"><section class="lx-faq">${FAQ.map(([q, a]) => `<details><summary>${q}<span aria-hidden="true">${IC.baixo}</span></summary><p>${a}</p></details>`).join('')}</section>
+  <aside class="lx-ajuda-lado"><section class="lx-painel"><h2>Ainda com dúvida?</h2><p>Fale com a biblioteca pelo WhatsApp.</p><a class="lx-btn verde" href="https://wa.me/${WHATS}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre o portal da Biblioteca Luzes de Aruanda.')}" target="_blank" rel="noopener">Conversar no WhatsApp ${IC.arrow}</a></section>
+    <section class="lx-painel"><h2>Encontrou um erro?</h2><p>Conte o que não funcionou: uma página que não abre, um botão, um livro ou uma cantiga com problema.</p>${probBt('portal', '', 'Portal')}</section></aside></div>`;
 
 /* ---------- cantigas (só associados) — versão 1.8: painel de seções, filtros, cards com Assistir/Ouvir/Ler letra e tela completa ---------- */
 const ORIG = { tradicional: 'Tradicional', autor: 'Autoria conhecida', casa: 'Da casa' };
@@ -489,16 +595,19 @@ const naSecao = (c, sec) => !sec || c.secoes.some(id => id === sec || (C.secoes.
 const cMidia = c => c.youtube && c.audio ? 'Vídeo e áudio' : c.youtube ? 'Vídeo' : c.audio ? 'Áudio' : 'Letra';
 const MIDIA = { video: ['Com vídeo', c => !!c.youtube], audio: ['Com áudio', c => !!c.audio], letra: ['Só letra', c => !c.youtube && !c.audio] };
 const cFiltradas = () => { const q = norm(FC.q); return C.cantigas.filter(c => naSecao(c, FC.sec) && (!FC.toq || c.toqueId === FC.toq) && (!FC.ori || c.origem === FC.ori) && (!FC.casa || c.origem === 'casa') && (!FC.mid || MIDIA[FC.mid][1](c)) && (!q || norm(c.titulo + ' ' + c.letra).includes(q))).sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR')); };
-const cThumb = c => c.youtube ? `<img src="https://i.ytimg.com/vi/${c.youtube}/mqdefault.jpg" alt="" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment(ART.notes))">` : ART.notes;
-const cBotoes = c => `${c.youtube ? `<button class="lp-btn ct-b" data-act="cAbrir" data-id="${c.id}" data-modo="assistir">${IC.play}<span>Assistir</span></button>` : ''}${c.audio || c.youtube ? `<button class="lp-btn light ct-b" data-act="cAbrir" data-id="${c.id}" data-modo="ouvir">${IC.fone}<span>Ouvir</span></button>` : ''}${c.letra ? `<button class="lp-btn light ct-b" data-act="cAbrir" data-id="${c.id}" data-modo="letra">${IC.letra}<span>Ler letra</span></button>` : ''}`;
+const CANT_COR = ['#3a2c7c', '#1d3a63', '#8a3f22', '#2f5d38', '#7a2f4a', '#245a5a', '#6b4b26', '#4d2d63'];
+const cCor = c => { const s = c.secoes[0] ? (C.secoes.find(x => x.id === c.secoes[0]) || {}) : {}; const p = s.paiId || s.id || c.titulo; let h = 0; for (const ch of String(p)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return CANT_COR[h % CANT_COR.length]; };
+const cIcone = c => { const s = c.secoes[0] && C.secoes.find(x => x.id === c.secoes[0]); const p = s && s.paiId ? C.secoes.find(x => x.id === s.paiId) || s : s; return p ? iconeSec(p) : sv(ICONES_SEC.nota); };
+const cThumb = c => c.youtube ? `<img src="https://i.ytimg.com/vi/${c.youtube}/mqdefault.jpg" alt="" loading="lazy" onerror="this.replaceWith(document.createRange().createContextualFragment('<span class=&quot;lx-cthumb-ic&quot;></span>'))">` : `<span class="lx-cthumb-ic">${cIcone(c)}</span>`;
+const cBotoes = c => `${c.youtube ? `<button class="lx-btn mini" data-act="cAbrir" data-id="${c.id}" data-modo="assistir">${IC.play}<span>Assistir</span></button>` : ''}${c.audio || c.youtube ? `<button class="lx-btn mini claro" data-act="cAbrir" data-id="${c.id}" data-modo="ouvir">${IC.fone}<span>Ouvir</span></button>` : ''}${c.letra ? `<button class="lx-btn mini claro" data-act="cAbrir" data-id="${c.id}" data-modo="letra">${IC.letra}<span>Letra</span></button>` : ''}`;
 function listaCantigas() {
   const l = cFiltradas(), sec = FC.sec && C.secoes.find(x => x.id === FC.sec);
   const cont = `<p class="small muted ct-cont">${l.length} ${l.length === 1 ? 'cantiga encontrada' : 'cantigas encontradas'}${sec ? ` em “${esc(sec.nome)}”` : ''}</p>`;
-  if (!l.length) return cont + '<div class="lp-panel"><p class="muted" style="margin:0">Nenhuma cantiga encontrada. Tente outra seção ou limpe os filtros.</p></div>';
-  return cont + l.map(c => { const v1 = (c.letra || '').split('\n').find(x => x.trim()) || ''; return `<div class="cant-card" id="cant-${c.id}" data-act="cVer" data-id="${c.id}">
-    <span class="ct-th">${cThumb(c)}${c.youtube ? `<span class="ct-play">${IC.play}</span>` : ''}</span>
-    <span class="ct-tx">${tituloCard(c.titulo, 'cVer', c.id)}${v1 ? `<i>${esc(v1)}</i>` : ''}<span class="ct-meta">${c.secoes[0] ? `<span>${esc(cSecCurto(c.secoes[0]))}</span>` : ''}${c.toqueId ? `<span>${esc(cToq(c.toqueId))}</span>` : ''}<span>${cMidia(c)}</span>${c.origem === 'casa' ? '<span class="lp-tag c">Da casa</span>' : ''}</span></span>
-    <span class="ct-bts">${cBotoes(c)}</span></div>`; }).join('');
+  if (!l.length) return cont + `<div class="lx-vazio">${IC.music}<b>Nenhuma cantiga encontrada</b><span>Tente outra seção ou limpe os filtros.</span></div>`;
+  return cont + `<div class="lx-cgrade">${l.map(c => { const v1 = (c.letra || '').split('\n').find(x => x.trim()) || ''; return `<article class="lx-ccard" id="cant-${c.id}" data-act="cVer" data-id="${c.id}">
+    <span class="lx-cthumb${c.youtube ? ' yt' : ''}" style="--cc:${cCor(c)}">${cThumb(c)}${c.youtube ? `<span class="lx-cplay">${IC.play}</span>` : ''}${c.origem === 'casa' ? '<span class="lx-selo">Da casa</span>' : ''}</span>
+    <div class="lx-ccard-tx">${tituloCard(c.titulo, 'cVer', c.id)}${v1 ? `<p class="lx-cverso">${esc(v1)}</p>` : ''}<p class="lx-cmeta">${[c.secoes[0] && cSecCurto(c.secoes[0]), c.toqueId && cToq(c.toqueId), cMidia(c)].filter(Boolean).map(esc).join(' · ')}</p></div>
+    <div class="lx-cbts">${cBotoes(c)}</div></article>`; }).join('')}</div>`;
 }
 function cantigaTela(c) {
   // versão 1.8.1: cada botão abre só o que foi pedido (Assistir = vídeo, Ouvir = áudio, Ler letra = letra); o card abre tudo
@@ -508,37 +617,43 @@ function cantigaTela(c) {
   const letra = `<pre class="letra">${esc(c.letra || 'Letra ainda não cadastrada.')}</pre>`;
   const info = `<dl class="ct-info">${c.secoes.length ? `<dt>Seções</dt><dd>${c.secoes.map(id => esc(cSecNome(id))).join(' · ')}</dd>` : ''}${c.toqueId ? `<dt>Toque</dt><dd>${esc(cToq(c.toqueId))}</dd>` : ''}<dt>Origem</dt><dd>${ORIG[c.origem] || '—'}${c.autor ? ': ' + esc(c.autor) : ''}</dd>${c.obs ? `<dt>Observações</dt><dd>${esc(c.obs)}</dd>` : ''}</dl>`;
   const outros = [['assistir', IC.play, 'Assistir', !!c.youtube], ['ouvir', IC.fone, 'Ouvir', !!(c.audio || c.youtube)], ['letra', IC.letra, 'Ler letra', !!c.letra]].filter(([m, , , ok]) => ok && m !== modo)
-    .map(([m, ic, rot]) => `<button class="lp-btn light ct-b" data-act="cAbrir" data-id="${c.id}" data-modo="${m}">${ic}<span>${rot}</span></button>`).join('');
-  const topo = `<div class="ct-topo"><button class="btn sm ghost" data-act="cVoltar">← Voltar às cantigas</button><div class="ct-bts ct-bts-det">${outros}${modo ? `<button class="lp-btn light ct-b" data-act="cVer" data-id="${c.id}">${IC.camadas}<span>Ver tudo</span></button>` : ''}${probBt('cantiga', c.id, c.titulo, true)}</div></div>`;
+    .map(([m, ic, rot]) => `<button class="lx-btn claro" data-act="cAbrir" data-id="${c.id}" data-modo="${m}">${ic}<span>${rot}</span></button>`).join('');
+  const topo = `<div class="ct-topo"><button class="lx-link" data-act="cVoltar">${IC.left} Cantigas</button><div class="ct-bts ct-bts-det">${outros}${modo ? `<button class="lx-btn claro" data-act="cVer" data-id="${c.id}">${IC.camadas}<span>Ver tudo</span></button>` : ''}${probBt('cantiga', c.id, c.titulo, true)}</div></div>`;
   if (modo === 'letra') return `${topo}<div class="ct-so ct-so-letra" id="ct-letra"><h1>${esc(c.titulo)}</h1>${letra}</div>`;
   if (modo === 'assistir' && c.youtube) return `${topo}<div class="ct-so ct-so-video"><h1>${esc(c.titulo)}</h1>${ytGrande(true)}</div>`;
   if (modo === 'ouvir') return `${topo}<div class="ct-so ct-so-audio"><h1>${esc(c.titulo)}</h1>${c.audio ? '<div class="ct-audio"><div id="c-play"></div></div>' : ouvirYt ? ytMini : ''}</div>`;
-  const audio = c.audio ? `<div class="ct-audio"><button class="lp-btn purple" data-act="cOuvir" data-id="${c.id}">${IC.fone} Ouvir só o áudio</button><div id="c-play"></div></div>` : '';
+  const audio = c.audio ? `<div class="ct-audio"><button class="lx-btn roxo" data-act="cOuvir" data-id="${c.id}">${IC.fone} Ouvir só o áudio</button><div id="c-play"></div></div>` : '';
   return `${topo}
-    <div class="ct-det"><div class="ct-midia">${c.youtube ? ytGrande(false) : ''}${audio}${!c.youtube && !c.audio ? `<div class="lp-panel ct-semmidia">${ART.drum}<p class="muted">Esta cantiga tem só a letra.</p></div>` : ''}${info}</div>
+    <div class="ct-det lx-cdet"><div class="ct-midia">${c.youtube ? ytGrande(false) : ''}${audio}${!c.youtube && !c.audio ? `<div class="lp-panel ct-semmidia">${ART.drum}<p class="muted">Esta cantiga tem só a letra.</p></div>` : ''}${info}</div>
       <div class="ct-letra" id="ct-letra"><h1>${esc(c.titulo)}</h1>${letra}${c.youtube ? `<p class="small"><a href="https://www.youtube.com/watch?v=${c.youtube}" target="_blank" rel="noopener">Abrir no YouTube</a></p>` : ''}</div></div>`;
 }
 function cantigas() {
   if (!modOk('cantigas')) return manutPagina('cantigas', 'Cantigas');
   if (!C) return cabecalho('Cantigas') + '<p class="muted">Carregando…</p>';
   if (FC.id) { const c = C.cantigas.find(x => x.id === FC.id); if (c) return cantigaTela(c); FC.id = ''; }
-  const pais = C.secoes.filter(x => !x.paiId).sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, 'pt-BR')), secAtual = C.secoes.find(y => y.id === FC.sec) || {}, paiSel = secAtual.paiId || FC.sec;
-  const subsDe = id => C.secoes.filter(x => x.paiId === id).sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, 'pt-BR'));
+  const ordem = (a, b) => (a.ordem || 0) - (b.ordem || 0) || a.nome.localeCompare(b.nome, 'pt-BR');
+  const pais = C.secoes.filter(x => !x.paiId).sort(ordem), secAtual = C.secoes.find(y => y.id === FC.sec) || {}, paiSel = secAtual.paiId || FC.sec;
+  const subsDe = id => C.secoes.filter(x => x.paiId === id).sort(ordem);
+  const nIn = id => C.cantigas.filter(c => naSecao(c, id)).length;
   const item = (x, sub) => `<button type="button" class="ct-sec${sub ? ' sub' : ''}" data-act="cSec" data-id="${x.id}" aria-pressed="${FC.sec === x.id || (!sub && paiSel === x.id)}">${sub ? '' : iconeSec(x)}<span>${esc(x.nome)}</span>${!sub && subsDe(x.id).length ? `<span class="chv${paiSel === x.id ? ' aberto' : ''}">${IC.right}</span>` : ''}</button>`;
-  const sel = (k, rot, ops) => `<select data-ch="${k}" aria-label="${rot}"><option value="">${rot} (todos)</option>${ops}</select>`;
   const navSec = () => `<nav class="ct-secoes" aria-label="Seções"><div class="ct-sec-tit">${IC.camadas}<b>Seções</b></div>
       <button type="button" class="ct-sec" data-act="cSec" data-id="" aria-pressed="${!FC.sec}">${sv(ICONES_SEC.nota)}<span>Todas as cantigas</span></button>
       ${pais.map(p => item(p) + (paiSel === p.id ? `<div class="ct-subs">${subsDe(p.id).map(s => item(s, true)).join('')}</div>` : '')).join('')}</nav>`;
-  return `${cabecalho('Cantigas', 'Assista, ouça e leia as cantigas da Umbanda.')}${avisoAdm('cantigas')}
-    ${C.casaOcultas ? `<div class="lp-panel lp-lock-nota">${IC.lock}<div><b>${C.casaOcultas === 1 ? '1 cantiga da casa é exclusiva' : C.casaOcultas + ' cantigas da casa são exclusivas'} dos associados</b><span class="small muted">${esc(MSG_PERFIL[C.motivo] || '')}</span></div></div>` : ''}
-    ${gavBt('sec', secAtual.nome || 'Todas as cantigas', navSec)}<div class="ct-grade">${navSec()}
-    <div class="ct-conteudo"><div class="ct-filtros"><span class="ct-ftit">${IC.filtro}<b>Filtros:</b></span>
-        ${sel('ctoq', 'Toque', C.toques.map(t => `<option value="${t.id}" ${FC.toq === t.id ? 'selected' : ''}>${esc(t.nome)}</option>`).join(''))}
+  const chip = (id, nome, ic, pres) => `<button type="button" class="lx-chip${ic ? ' ic' : ''}" data-act="cSec" data-id="${id}" aria-pressed="${pres}">${ic || ''}${esc(nome)}<span>${nIn(id)}</span></button>`;
+  const chips = `<div class="lx-chips" role="group" aria-label="Seções">${chip('', 'Todas', '', !FC.sec)}${pais.map(p => chip(p.id, p.nome, iconeSec(p), paiSel === p.id)).join('')}</div>
+    ${paiSel && subsDe(paiSel).length ? `<div class="lx-chips sub" role="group" aria-label="Subseções">${subsDe(paiSel).map(s => chip(s.id, s.nome, '', FC.sec === s.id)).join('')}</div>` : ''}`;
+  const sel = (k, rot, ops, v) => `<label class="lx-sel"><span class="sr">${rot}</span><select data-ch="${k}" aria-label="${rot}"><option value="">${rot}: todos</option>${ops}</select></label>`;
+  return `${cabecalho('Cantigas', 'Assista, ouça e leia as cantigas da Umbanda. Cada cantiga traz a letra para acompanhar a gira.')}${avisoAdm('cantigas')}
+    ${C.casaOcultas ? `<div class="lx-trava-nota">${IC.lock}<div><b>${C.casaOcultas === 1 ? '1 cantiga da casa é exclusiva' : C.casaOcultas + ' cantigas da casa são exclusivas'} dos associados</b><span>${esc(MSG_PERFIL[C.motivo] || '')}</span></div></div>` : ''}
+    <div class="lx-filtros">
+      <label class="lx-campo-busca"><span class="sr">Buscar cantiga</span>${IC.search}<input data-in="cq" type="search" value="${esc(FC.q)}" placeholder="Buscar pelo título ou por um trecho da letra" autocomplete="off"></label>
+      <div class="lx-filtros-linha multi">${gavBt('sec', secAtual.nome || 'Todas', navSec)}
+        ${C.toques.length ? sel('ctoq', 'Toque', C.toques.map(t => `<option value="${t.id}" ${FC.toq === t.id ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')) : ''}
         ${sel('cori', 'Origem', Object.keys(ORIG).map(k => `<option value="${k}" ${FC.ori === k ? 'selected' : ''}>${ORIG[k]}</option>`).join(''))}
         ${sel('cmid', 'Mídia', Object.keys(MIDIA).map(k => `<option value="${k}" ${FC.mid === k ? 'selected' : ''}>${MIDIA[k][0]}</option>`).join(''))}
-        ${D.leitor.emDia ? `<label class="check small ct-casa"><input type="checkbox" data-ch="ccasa" ${FC.casa ? 'checked' : ''}> Só da casa</label>` : ''}</div>
-      <label class="search ct-busca"><span class="sr">Buscar</span>${IC.search}<input data-in="cq" value="${esc(FC.q)}" placeholder="Buscar cantiga pelo título ou trecho da letra" autocomplete="off"></label>
-      <div id="clista" class="cant-lista">${listaCantigas()}</div></div></div>`;
+        ${D.leitor.emDia ? `<label class="lx-toggle"><input type="checkbox" data-ch="ccasa" ${FC.casa ? 'checked' : ''}><span class="lx-toggle-sw" aria-hidden="true"></span>Só da casa</label>` : ''}</div>
+      ${chips}</div>
+    <div id="clista">${listaCantigas()}</div>`;
 }
 async function ouvirAudio(id) {
   let r; try { r = await api('leitor.cantigaAudio', { token: token(), id }, 'Carregando o áudio…'); } catch (e) { const c = C && C.cantigas.find(x => x.id === id); autoProb('cantiga', id, c ? c.titulo : '', 'O áudio não tocou', e); throw e; }
@@ -617,6 +732,17 @@ const FORMS = {
     const r = await api('leitor.trocarSenha', { token: token(), atual: $('#t-atual').value, nova: n }, 'Salvando…'); ls.set('bibLeitor', r.token); toast('Senha alterada'); render();
   }),
 };
+/* ---------- versão 2.0: ações da vitrine, da busca e da entrada ---------- */
+Object.assign(ACT, {
+  menu: () => { MENU = true; render(); const b = $('.lx-conta-box'); if (b) { b.setAttribute('tabindex', '-1'); b.focus(); } },
+  verSenha: t => { const i = t.parentElement.querySelector('input'); const ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; t.setAttribute('aria-pressed', ver); t.setAttribute('aria-label', ver ? 'Esconder a senha' : 'Mostrar a senha'); t.innerHTML = ver ? IC.olhoX : IC.olho; i.focus(); },
+  irGen: t => { F.g = t.dataset.id; F.q = ''; F.id = ''; irPara('catalogo'); },
+  oLimpar: () => { F.q = ''; F.g = ''; F.disp = ''; render(); const i = $('#q'); if (i) i.focus(); },
+  buscar: () => { F.id = ''; if (PG !== 'catalogo') irPara('catalogo'); else render(); const i = $('#q'); if (i) { i.focus(); i.select(); } },
+  rolar: t => { const d = $('#' + (t.dataset.alvo || 'dest')); if (d) d.scrollBy({ left: +t.dataset.d * Math.max(260, d.clientWidth * 0.8), behavior: SUAVE() }); },
+});
+FORMS.buscaGeral = () => { const q = ($('#bg-q') || {}).value || ''; F.q = q.trim(); F.g = ''; F.id = ''; if (F.q) regBusca('catálogo', F.q); irPara('catalogo'); const i = $('#q'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } };
+document.addEventListener('change', e => { if (e.target.dataset.ch === 'odispck') { F.disp = e.target.checked ? 'sim' : ''; $('#lista').innerHTML = listaObras(); avisoLista('#lista'); } });
 document.addEventListener('click', e => { const t = e.target.closest('[data-act]'); if (t && ACT[t.dataset.act]) { if (t.tagName === 'A') return; if (t.disabled) return; e.preventDefault(); ACT[t.dataset.act](t, e); } });
 document.addEventListener('submit', e => { const f = e.target.closest('[data-form]'); if (f) { e.preventDefault(); FORMS[f.dataset.form](); } });
 document.addEventListener('input', e => {
