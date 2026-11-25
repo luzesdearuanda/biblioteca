@@ -489,33 +489,35 @@ function loanRows(list, opt = {}) {
 }
 
 /* ============ Telas de acesso ============ */
-const loginCard = body => `<div class="login"><div class="login-card">
-    <div class="logo-disc"><img src="${LOGO}" alt="Logo da Associação Centro de Umbanda Luzes de Aruanda"></div>
-    <div style="display:grid;gap:6px"><div class="eyebrow">Biblioteca</div><h1>Associação Centro de Umbanda Luzes de Aruanda</h1><p class="muted">Acervo, empréstimos e devoluções</p></div>
+// versão 2.0: entrada no mesmo desenho do Portal do Leitor (apresentação à esquerda, acesso à direita)
+const loginCard = (body, titulo = 'Entrar no sistema', sub = 'Acervo, empréstimos e devoluções da biblioteca.') => `<div class="lx-entrada">
+  <section class="lx-ent-arte" aria-hidden="true"><div class="lx-luz"></div><div class="lx-ent-arte-in"><p class="lx-eyebrow claro">Biblioteca Luzes de Aruanda</p>
+    <p class="lx-ent-frase">Conhecimento também é <em>caminho de luz.</em></p><p class="lx-ent-sub">O sistema da equipe da biblioteca: acervo, empréstimos, pedidos do portal e muito mais.</p>
+    <ul class="lx-ent-trio"><li>${ic('swap')}<span><b>Empréstimos e devoluções</b>Com protocolo assinado</span></li><li>${ic('book')}<span><b>Catálogo e etiquetas</b>Do acervo físico</span></li><li>${ic('bell')}<span><b>Pedidos do portal</b>Separe e confirme</span></li></ul></div></section>
+  <section class="lx-ent-painel"><div class="lx-ent-card">
+    <div class="lx-ent-marca"><img src="${LOGO}" alt="Logo da Associação Centro de Umbanda Luzes de Aruanda"><div><span class="lx-eyebrow">Biblioteca</span><b>Associação Centro de Umbanda Luzes de Aruanda</b></div></div>
+    <div class="lx-ent-tit"><h1>${titulo}</h1>${sub ? `<p>${sub}</p>` : ''}</div>
     ${body}
-    <p class="small muted"><a href="privacidade.html" target="_blank" rel="noopener">Política de privacidade</a></p>
-  </div></div>`;
+    <p class="lx-ent-rodape"><a href="privacidade.html" target="_blank" rel="noopener">Política de privacidade</a></p>
+  </div></section></div>`;
 function vLogin() {
   if (UI.login === 'loading') return loginCard(`<div class="spinner" role="status" aria-label="Carregando"></div><p class="muted">Validando acesso e carregando o acervo…</p>`);
   if (UI.login === 'error') return loginCard(`<div class="note bad" style="text-align:left"><b>Não foi possível carregar o sistema</b><span>${esc(UI.errMsg)}</span></div><button class="btn primary" data-act="retryBoot">Tentar de novo</button><button class="btn ghost" data-act="loginReset">Entrar com outra conta</button>`);
   // versão 1.6.5: primeiro escolhe Leitor ou Operador (a escolha de operador fica lembrada neste aparelho)
   if (UI.operador === undefined) { let a = ''; try { a = localStorage.getItem('bibAcesso'); } catch (e) { } UI.operador = a === 'operador' || !!UI.loginMsg; }
-  if (!UI.operador) return loginCard(`<p class="muted" style="margin:0">Como você quer entrar?</p>
+  if (!UI.operador) return loginCard(`
       <div class="acesso-opcoes">
         <a class="acesso" href="leitor.html">${ic('book')}<span><b>Leitor</b><span>Consultar o acervo, pedir livros e ver as cantigas. Entra com CPF e senha.</span></span></a>
         <button class="acesso" data-act="acessoOperador">${ic('shield')}<span><b>Operador</b><span>Empréstimos, cadastros e gestão da biblioteca. Entra com a conta Google.</span></span></button>
-      </div>`);
-  return loginCard(`<div class="eyebrow" style="margin:0">Acesso do operador</div>${UI.loginMsg ? `<div class="note warn" style="text-align:left"><span>${esc(UI.loginMsg)}</span></div>` : ''}<div id="g-btn" class="g-btn" aria-label="Entrar com Google"></div>
+      </div>`, 'Como você quer entrar?', 'Leitores entram com CPF e senha; a equipe da biblioteca entra com a conta Google.');
+  return loginCard(`${UI.loginMsg ? `<div class="note warn" style="text-align:left"><span>${esc(UI.loginMsg)}</span></div>` : ''}<div id="g-btn" class="g-btn" aria-label="Entrar com Google"></div>
       <p class="small muted">O acesso é liberado apenas para operadores cadastrados pela administração da biblioteca. O app nunca pede sua senha do Google.</p>
-      <button class="btn ghost" data-act="acessoVoltar">← Sou leitor / voltar</button>`);
+      <button class="btn ghost" data-act="acessoVoltar" style="justify-self:start">← Sou leitor / voltar</button>`, 'Acesso do operador', '');
 }
 function vDenied() {
-  return `<div class="login"><div class="login-card">
-    <div class="logo-disc" style="width:88px;height:88px"><img src="${LOGO}" alt=""></div>
-    <div class="note bad" style="text-align:left"><b>Esta conta não tem acesso</b><span>${esc(UI.deniedMsg)}</span></div>
+  return loginCard(`<div class="note bad" style="text-align:left"><b>Esta conta não tem acesso</b><span>${esc(UI.deniedMsg)}</span></div>
     <p class="muted small">Peça ao administrador da biblioteca para liberar este e-mail na lista de operadores. Nenhum dado da biblioteca foi carregado.</p>
-    <button class="btn primary" data-act="loginReset">Entrar com outra conta</button>
-  </div></div>`;
+    <button class="btn primary" data-act="loginReset">Entrar com outra conta</button>`, 'Acesso não liberado', '');
 }
 function vSetup() {
   return loginCard(`<div class="note warn" style="text-align:left"><b>Sistema ainda não configurado</b><span>Preencha <span class="mono">API_URL</span> e <span class="mono">CLIENT_ID</span> no arquivo <span class="mono">config.js</span>, conforme o guia de implantação.</span></div>`);

@@ -1,0 +1,180 @@
+/* Sistema dos operadores — versão 2.0: o mesmo visual do Portal do Leitor (papel claro, azul da casa, dourado de acento,
+   tipografia Bitter + Source Sans, cantos generosos, vidro na navegação). Só vale com <body class="adm">. */
+body.adm{
+  --bg:#fbfaf7;--surface:#fff;--surface-2:#f3f0e9;--line:rgba(20,24,33,.11);--fg:#141821;--muted:#5f6675;
+  --brand:#16325a;--brand-strong:#0f2441;--brand-soft:#e6ecf5;--on-brand:#fff;
+  --sea:#16325a;--sea-2:#1f4272;--on-sea:#fff;--on-sea-muted:#b9c6da;
+  --sun:#b07f22;--sun-soft:#f5ebd6;--ok:#24793a;--ok-soft:#e3f1e4;--info:#1f4a86;--info-soft:#e4ecf8;--warn:#9a6400;--warn-soft:#fbefd2;--bad:#b4332a;--bad-soft:#f9e1dd;--mute:#5f6675;--mute-soft:#eceae4;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 10px 30px rgba(16,24,40,.07);--r:18px;
+  --gold:#c98f2c;--glass:rgba(251,250,247,.76);
+  background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]):not([data-theme="contrast"]) body.adm{
+  --bg:#0b0f16;--surface:#161d2b;--surface-2:#111724;--line:rgba(255,255,255,.11);--fg:#eef1f6;--muted:#a3adbd;
+  --brand:#3466ab;--brand-strong:#2a5591;--brand-soft:#1b2a44;--on-brand:#fff;--sea:#16325a;--sea-2:#22467a;
+  --sun:#e3b252;--sun-soft:#2e2615;--ok:#6cc278;--ok-soft:#18301d;--info:#9cc0ff;--info-soft:#18263d;--warn:#edbb55;--warn-soft:#33270f;--bad:#f28b80;--bad-soft:#3a1d1a;--mute:#a3adbd;--mute-soft:#1f2633;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);--glass:rgba(11,15,22,.74)}}
+:root[data-theme="dark"] body.adm{
+  --bg:#0b0f16;--surface:#161d2b;--surface-2:#111724;--line:rgba(255,255,255,.11);--fg:#eef1f6;--muted:#a3adbd;
+  --brand:#3466ab;--brand-strong:#2a5591;--brand-soft:#1b2a44;--on-brand:#fff;--sea:#16325a;--sea-2:#22467a;
+  --sun:#e3b252;--sun-soft:#2e2615;--ok:#6cc278;--ok-soft:#18301d;--info:#9cc0ff;--info-soft:#18263d;--warn:#edbb55;--warn-soft:#33270f;--bad:#f28b80;--bad-soft:#3a1d1a;--mute:#a3adbd;--mute-soft:#1f2633;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);--glass:rgba(11,15,22,.74)}
+
+/* ---------- tipografia ---------- */
+body.adm h1,body.adm h2,body.adm h3{font-family:var(--f-display);letter-spacing:-.01em}
+.adm .page-head h1{font-size:clamp(1.9rem,3.2vw,2.6rem);line-height:1.08;margin:0}
+.adm .page-head .sub{font-size:1.02rem;color:var(--muted);margin-top:6px;max-width:70ch}
+.adm .panel-head h2,.adm .panel h2{font-size:1.3rem}
+
+/* ---------- moldura: barra lateral clara, estilo aplicativo ---------- */
+.adm .shell{grid-template-columns:268px minmax(0,1fr);background:var(--bg)}
+.adm .side{background:var(--surface-2);color:var(--fg);border-right:1px solid var(--line);padding:22px 14px 16px;gap:4px}
+.adm .side-brand{padding:0 8px 18px;gap:12px}
+.adm .side-brand .logo-sm{width:42px;height:42px;box-shadow:0 0 0 1px var(--line),0 4px 12px rgba(0,0,0,.08)}
+.adm .side-brand b{font-family:var(--f-display);font-size:1.05rem;color:var(--fg)}
+.adm .side-brand span{color:var(--muted);font-size:.8rem}
+.adm .nav{gap:1px;overflow-y:auto;scrollbar-width:thin}
+.adm .nav-sec{color:var(--muted);font-size:.7rem;letter-spacing:.12em;margin:14px 10px 6px;opacity:1}
+.adm .nav button{color:var(--fg);border-radius:12px;padding:9px 12px;font-size:.95rem;font-weight:500;opacity:.92}
+.adm .nav button svg{color:var(--muted)}
+.adm .nav button:hover{background:color-mix(in srgb,var(--fg) 6%,transparent);opacity:1}
+.adm .nav button[aria-current="page"]{background:var(--surface);color:var(--fg);font-weight:700;box-shadow:0 0 0 1px var(--line),0 1px 3px rgba(0,0,0,.06);opacity:1}
+.adm .nav button[aria-current="page"] svg{color:var(--brand)}
+.adm .nav .count{background:var(--bad);color:#fff;border-radius:99px;font-size:.72rem;padding:1px 7px;font-weight:700}
+.adm .side-user{margin-top:10px;padding:14px 10px 0;border-top:1px solid var(--line);color:var(--fg)}
+.adm .side-user .email{color:var(--muted)}
+.adm .side-user button{color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:999px}
+.adm .side-user button:hover{background:var(--bg)}
+.adm .role{background:var(--sun-soft);color:var(--sun);border-radius:999px;font-weight:700;letter-spacing:.06em}
+.adm .page{max-width:1240px;padding-block:36px 56px;gap:26px}
+
+/* ---------- botões ---------- */
+.adm .btn{border-radius:999px;min-height:42px;padding:9px 18px;border-color:var(--line);transition:background .2s,transform .12s,box-shadow .2s}
+.adm .btn:active{transform:scale(.97)}
+.adm .btn.primary{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.adm .btn.primary:hover{background:var(--brand-strong);border-color:var(--brand-strong)}
+.adm .btn.danger{border-radius:999px}
+.adm .btn.ghost{border-color:transparent}
+.adm .btn.sm{min-height:34px;padding:6px 14px}
+.adm .btn.lg{min-height:52px;padding:12px 22px;font-size:1.02rem}
+.adm .icon-btn{border-radius:999px}
+
+/* ---------- painéis, números e atalhos ---------- */
+.adm .panel{border:0;box-shadow:0 0 0 1px var(--line);border-radius:24px;padding:22px 24px}
+.adm .kpis{grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:14px}
+.adm .kpi{border:0;box-shadow:0 0 0 1px var(--line);border-radius:22px;padding:18px 20px;gap:4px;transition:transform .2s,box-shadow .2s}
+.adm button.kpi:hover{transform:translateY(-2px);box-shadow:var(--shadow),0 0 0 1px var(--line)}
+.adm .kpi .k-label{font-size:.8rem;font-weight:700;letter-spacing:.04em;color:var(--muted)}
+.adm .kpi .k-val{font-family:var(--f-display);font-size:2.4rem;line-height:1.05;color:var(--fg)}
+.adm .kpi .k-note{font-size:.86rem;color:var(--muted)}
+.adm .kpi.warn{background:var(--warn-soft);box-shadow:none}.adm .kpi.warn .k-val{color:var(--warn)}
+.adm .kpi.bad{background:var(--bad-soft);box-shadow:none}.adm .kpi.bad .k-val{color:var(--bad)}
+.adm .quick{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.adm .quick .btn{justify-content:flex-start;min-height:64px;border-radius:20px;padding:14px 20px;font-size:1rem;border:0;box-shadow:0 0 0 1px var(--line);background:var(--surface)}
+.adm .quick .btn svg{width:22px;height:22px;color:var(--brand)}
+.adm .quick .btn.primary{background:var(--brand);color:#fff;box-shadow:0 10px 24px color-mix(in srgb,var(--brand) 30%,transparent)}
+.adm .quick .btn.primary svg{color:#fff}
+.adm .quick .btn:hover{transform:translateY(-2px);box-shadow:var(--shadow),0 0 0 1px var(--line)}
+
+/* ---------- etiquetas de situação ---------- */
+.adm .pill{border-radius:999px;font-weight:700;padding:4px 11px}
+.adm .chip{border-radius:999px}
+
+/* ---------- busca, filtros e abas ---------- */
+.adm .search input{border-radius:999px;min-height:48px;padding-left:44px;border:0;box-shadow:0 0 0 1px var(--line);background:var(--surface)}
+.adm .search input:focus{outline:none;box-shadow:0 0 0 2px var(--brand)}
+.adm .seg{gap:8px}
+.adm .seg button{border:0;box-shadow:0 0 0 1px var(--line);padding:7px 14px;font-size:.9rem;color:var(--muted);background:var(--surface)}
+.adm .seg button:hover{color:var(--fg)}
+.adm .seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg);box-shadow:none}
+.adm .tabs{gap:8px}
+
+/* ---------- tabelas ---------- */
+.adm .table-wrap{border:0;box-shadow:0 0 0 1px var(--line);border-radius:22px}
+.adm th{background:transparent;border-bottom:1px solid var(--line);font-size:.72rem;letter-spacing:.08em;padding:14px 16px}
+.adm td{padding:13px 16px;border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.adm tbody tr.click:hover td{background:color-mix(in srgb,var(--brand) 4%,transparent)}
+.adm td .t{font-weight:700}
+.adm .pager{padding:4px 2px}
+
+/* ---------- formulários ---------- */
+.adm .field label{font-weight:700;font-size:.9rem}
+.adm .field input,.adm .field select,.adm .field textarea{border-radius:12px;min-height:46px;padding:10px 14px;border-color:var(--line)}
+.adm .field input:focus,.adm .field select:focus,.adm .field textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 4px color-mix(in srgb,var(--brand) 16%,transparent)}
+.adm fieldset{border-radius:20px;border-color:var(--line)}
+.adm .check input{accent-color:var(--brand)}
+.adm .drop{border-radius:20px}
+
+/* ---------- avisos ---------- */
+.adm .note{border:0;border-radius:18px;padding:14px 16px}
+.adm .note.ok{background:var(--ok-soft)}.adm .note.warn{background:var(--warn-soft)}.adm .note.bad{background:var(--bad-soft)}.adm .note.info{background:var(--info-soft)}
+
+/* ---------- novo empréstimo e protocolo ---------- */
+.adm .step-n{background:var(--gold);color:#fff;width:30px;height:30px}
+.adm .step-n.done{background:var(--ok)}
+.adm .prot-steps li.cur{color:var(--brand)}
+.adm .result{border-radius:24px}
+
+/* ---------- janelas, avisos rápidos e menus ---------- */
+.adm .modal{border-radius:26px;box-shadow:0 30px 80px rgba(10,14,22,.3)}
+.adm .overlay{background:rgba(10,14,22,.32);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.adm .toast{border-radius:16px}
+.adm .cant-card,.adm .dig-ult-i{border-radius:20px}
+
+/* ---------- entrada (mesmo desenho da entrada do portal) ---------- */
+.adm .lx-entrada{min-height:100vh;min-height:100dvh;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);background:var(--bg)}
+.adm .lx-ent-arte{position:relative;overflow:hidden;background:radial-gradient(120% 90% at 0% 0%,#24497a 0%,#16325a 45%,#0c1b33 100%);color:#fff;display:flex;align-items:center;padding:clamp(28px,5vw,72px)}
+.adm .lx-ent-arte-in{position:relative;z-index:1;max-width:560px;display:grid;gap:18px}
+.adm .lx-eyebrow{margin:0;font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--sun)}
+.adm .lx-eyebrow.claro{color:#e9c983}
+.adm .lx-ent-frase{margin:0;font-family:var(--f-display);font-size:clamp(2.3rem,4.4vw,3.8rem);line-height:1.04;letter-spacing:-.02em;font-weight:700}
+.adm .lx-ent-frase em{font-style:normal;background:linear-gradient(90deg,#d9a441 0%,#f0c46a 45%,#d9773a 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.adm .lx-ent-sub{margin:0;font-size:18px;line-height:1.5;color:rgba(255,255,255,.78);max-width:40ch}
+.adm .lx-ent-trio{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:10px}
+.adm .lx-ent-trio li{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:18px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12)}
+.adm .lx-ent-trio svg{width:24px;height:24px;flex:none;color:#f0c46a}
+.adm .lx-ent-trio b{display:block;font-size:15.5px}.adm .lx-ent-trio span{font-size:14px;color:rgba(255,255,255,.72)}
+.adm .lx-luz{position:absolute;inset:-20%;pointer-events:none;background:radial-gradient(38% 32% at 78% 18%,rgba(240,196,106,.5),transparent 70%),radial-gradient(30% 26% at 20% 70%,rgba(143,180,255,.2),transparent 70%);filter:blur(10px);animation:adm-luz 16s ease-in-out infinite alternate}
+@keyframes adm-luz{to{transform:translate3d(-3%,2%,0) rotate(4deg)}}
+.adm .lx-ent-painel{display:grid;place-items:center;padding:clamp(24px,5vw,64px) clamp(20px,5vw,72px)}
+.adm .lx-ent-card{width:100%;max-width:420px;display:grid;gap:20px}
+.adm .lx-ent-marca{display:flex;align-items:center;gap:14px}
+.adm .lx-ent-marca img{width:56px;height:56px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px var(--line),0 6px 18px rgba(0,0,0,.08)}
+.adm .lx-ent-marca b{display:block;font-family:var(--f-display);font-size:18px}
+.adm .lx-ent-tit h1{margin:0;font-size:clamp(1.8rem,3vw,2.3rem);line-height:1.1}
+.adm .lx-ent-tit p{margin:8px 0 0;color:var(--muted);font-size:16px;line-height:1.5}
+.adm .lx-ent-rodape{margin:4px 0 0;padding-top:16px;border-top:1px solid var(--line);font-size:14px;color:var(--muted);text-align:center}
+.adm .acesso-opcoes{display:grid;gap:12px}
+.adm .acesso{border:0;box-shadow:0 0 0 1px var(--line);border-radius:22px;padding:18px 20px;background:var(--surface);transition:transform .2s,box-shadow .2s}
+.adm .acesso:hover,.adm .acesso:focus-visible{transform:translateY(-2px);box-shadow:var(--shadow),0 0 0 2px var(--brand)}
+.adm .acesso>svg{color:var(--brand)}
+.adm .lx-ent-card .g-btn{justify-self:start}
+
+/* ---------- celular ---------- */
+@media (max-width:900px){
+  .adm .topbar{background:var(--glass);color:var(--fg);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--line)}
+  .adm .topbar b{color:var(--fg)}
+  .adm .page{padding-block:22px 120px}
+  .adm .bottom-nav{left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));padding:6px;border:0;border-radius:28px;background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(190%);backdrop-filter:blur(22px) saturate(190%);box-shadow:0 10px 30px rgba(10,14,22,.18),0 0 0 1px var(--line);max-width:540px;margin:0 auto}
+  .adm .bottom-nav button{border-radius:22px;padding:7px 2px 6px;color:var(--muted);font-weight:600}
+  .adm .bottom-nav button[aria-current="page"]{color:var(--brand);background:color-mix(in srgb,var(--brand) 11%,transparent)}
+  .adm .bottom-nav .main-act span.ic{margin-top:0;width:40px;height:30px;border-radius:999px;background:var(--brand)}
+  .adm .bottom-nav .main-act[aria-current="page"]{background:none}
+  .adm .sheet-menu{border-radius:28px 28px 0 0;padding:20px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+  .adm .sheet-menu button{border-radius:14px}
+  .adm .lx-entrada{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .adm .lx-ent-arte{padding:40px 24px 76px;align-items:flex-start}
+  .adm .lx-ent-frase{font-size:clamp(2rem,9vw,2.5rem)}.adm .lx-ent-sub{font-size:16px}.adm .lx-ent-trio{display:none}
+  .adm .lx-ent-painel{place-items:start center;margin-top:-40px;position:relative;z-index:2;background:var(--bg);border-radius:28px 28px 0 0;padding:28px 22px 32px}
+  .adm .lx-ent-marca{display:none}
+  .adm .kpi .k-val{font-size:2rem}
+}
+@media (prefers-reduced-motion: reduce){.adm .lx-luz{animation:none}}
+:root[data-theme="contrast"] .adm .lx-luz{display:none}
+.adm .page{margin-inline:auto;width:100%;box-sizing:border-box}
+.adm .nav button{padding:8px 12px}
+.adm .side-user{font-size:.86rem;gap:6px}
+@media (max-width:900px){.adm .shell{grid-template-columns:minmax(0,1fr)}}
+.adm .acesso>svg{width:48px;height:48px;padding:12px;box-sizing:border-box;border-radius:16px;background:var(--brand-soft);color:var(--brand);fill:none;flex:none}
+.adm .side-user{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px}
+.adm .side-user>div{grid-column:1/-1}
+.adm .side-user button{margin:0;min-height:34px;font-size:.82rem;padding:6px 10px}
